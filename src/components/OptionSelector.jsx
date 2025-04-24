@@ -349,8 +349,8 @@ export default function OptionSelector({
               [
                 { label: "Greater than", value: ">" },
                 { label: "Less than", value: "<" },
-                { label: "Greater than or equal", value: ">=" },
-                { label: "Less than or equal", value: "<=" },
+                { label: "Equal", value: "=" },
+                
               ].find(
                 (op) => op.value === selector?.selectedOption3?.operator
               ) || null
@@ -364,8 +364,8 @@ export default function OptionSelector({
             options={[
               { label: "Greater than", value: ">" },
               { label: "Less than", value: "<" },
-              { label: "Greater than or equal", value: ">=" },
-              { label: "Less than or equal", value: "<=" },
+              { label: "Equal", value: "=" },
+              
             ]}
             getOptionLabel={(option) => option.label}
             isOptionEqualToValue={(option, value) =>
