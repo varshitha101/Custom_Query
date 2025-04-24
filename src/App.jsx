@@ -7,7 +7,7 @@ const Home = lazy(() => import("./pages/Home"));
 
 export default function App() {
   return (
-    <Router>
+    <Router basename="/Custom_Query"> {/* Add basename here */}
       <Suspense fallback={<Loader />}>
         <Routes>
           <Route path="/" element={<Login />} />
