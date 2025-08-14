@@ -1,0 +1,17 @@
+{
+  "name": "custom-query-test",
+  "version": "1.0.0",
+  "description": "",
+  "main": "temp.js",
+  "scripts": {
+    "start:all": "npx concurrently \"npm --prefix server start\" \"start-client.cmd\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "concurrently": "^9.2.0",
+    "serve": "^14.2.0"
+  }
+}

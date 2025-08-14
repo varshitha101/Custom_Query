@@ -1,0 +1,5 @@
+.custom-toast-width {
+  width: fit-content;
+  max-width: 90vw;
+  white-space: normal;
+}
