@@ -92,14 +92,12 @@ export default async function handleQueryFetch(expression, expressionString, set
                 return;
               }
               const originalCount = excelResponse.length;
-
               // Keep only rows where both patients1 and Form_1 exist and are not empty
               excelResponse = excelResponse.filter((row) => row.patients1 && Object.keys(row.patients1).length > 0 && row.Form_1 && Object.keys(row.Form_1).length > 0);
-              const filteredCount = excelResponse.length;
-              const removedCount = originalCount - filteredCount;
-
+              const removedCount = originalCount - excelResponse.length;
               console.log(`Removed patients : ${removedCount}`);
 
+              // Check if mammography or ultrasound is advised
               const isMammography = expression.some((item) => item.type === "selector" && item.value.selectedOption2 === "Advised bilateral screening mammography");
               const isUltrasound = expression.some((item) => item.type === "selector" && item.value.selectedOption2 === "Advised bilateral screening ultrasound");
 
