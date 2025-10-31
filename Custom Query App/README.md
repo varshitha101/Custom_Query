@@ -57,3 +57,8 @@ This will:
 
 > **Note:**  
 > The client will be available at the local IP shown in the console (e.g., `http://192.168.x.x:3000`).
+
+## Version Control Notes
+
+- **Version 0.10**: Initial base version, stable and error-free.
+- **Version 0.11**: Enabled OTP feature and session checker function.

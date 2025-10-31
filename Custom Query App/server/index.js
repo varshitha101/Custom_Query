@@ -19,5 +19,5 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/auth", authRoutes);
 app.use("/query", queryRoutes); // Ensure this route is correct
 const ipAddress = process.env.IP_ADDRESS || "localhost"; // Default to localhost if not set
-const port = process.env.PORT || 8080;
+const port = process.env.PORT || 8000; // Default to 8000 if not set
 app.listen(port, "0.0.0.0", () => console.log(`Server is live on http://${ipAddress}:${port}`));

@@ -24,7 +24,7 @@ export default async function handleQueryFetch(expression, expressionString, set
 
     // Add timeout to the fetch request
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 30 second timeout
 
     const response = await fetch(`${import.meta.env.VITE_BASE_SERVER_URL}/query/fetch`, {
       method: "POST",

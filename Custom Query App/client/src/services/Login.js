@@ -54,7 +54,11 @@ export default async function handleLogin(
     } else {
       fullUserEmail = userEmail;
     }
-
+    if (isRememberMe) {
+      localStorage.setItem("userEmail", userEmail);
+      localStorage.setItem("userPassword", userPassword);
+      localStorage.setItem("isRememberMe", "true");
+    }
     const response = await axios.post(`${import.meta.env.VITE_BASE_SERVER_URL}/auth/login`, { fullUserEmail, userPassword, userWinID });
     console.log("response", response);
     if (response.status === 200) {
@@ -63,11 +67,6 @@ export default async function handleLogin(
       if (response.data.message === "User authenticated successfully") {
         localStorage.setItem("winID", userWinID);
         toast.success("Login successful!");
-        if (isRememberMe) {
-          localStorage.setItem("userEmail", userEmail);
-          localStorage.setItem("userPassword", userPassword);
-          localStorage.setItem("isRememberMe", "true");
-        }
 
         setIsSubmitClick(false);
         setShowOtpDialog(false);
