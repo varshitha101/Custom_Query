@@ -1,10 +1,10 @@
 node_modules
 .env
 
-Custom Query App V 0.10/node_modules
-Custom Query App V 0.10/client/node_modules
-Custom Query App V 0.10/client/.env
-Custom Query App V 0.10/server/node_modules
-Custom Query App V 0.10/server/.env
-Custom Query App V 0.10/log_1756402472.txt
+Custom Query App/node_modules
+Custom Query App/client/node_modules
+Custom Query App/client/.env
+Custom Query App/server/node_modules
+Custom Query App/server/.env
+Custom Query App/log_1756402472.txt
 
