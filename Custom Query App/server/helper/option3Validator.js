@@ -108,7 +108,7 @@ export default function option3Validator(field, expectedValue, dataInfo, source)
         expectedValue = "f";
       }
 
-      if (actualValue.toLowerCase() !== undefined) {
+      if (actualValue !== undefined) {
         if (actualValue.toLowerCase() === expectedValue) {
           // console.log("actualValue, expectedValue: ",actualValue, ": ",expectedValue);
           return true;

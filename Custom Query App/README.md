@@ -1,11 +1,11 @@
-# Custom Query Test
+# Custom Query App
 
 This project is a full-stack application with a React frontend and a Node.js/Express backend, designed for building and executing custom queries with an interactive UI. It uses Firebase as the database and supports Excel export of results.
 
 ## Folder Structure
 
 ```
-Custom Query Test/
+Custom Query App/
 ├── client/
 │ ├── .env
 │ ├── package.json
@@ -61,4 +61,7 @@ This will:
 ## Version Control Notes
 
 - **Version 0.10**: Initial base version, stable and error-free.
-- **Version 0.11**: Enabled OTP feature and session checker function.
+- **Version 0.11**:
+  - Enabled OTP feature.
+  - Uncommented out Session checker function.
+  - Resolved issue related Gender in server/helper/option3Validator.js
