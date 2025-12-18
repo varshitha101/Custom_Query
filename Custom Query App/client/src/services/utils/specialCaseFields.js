@@ -9,7 +9,7 @@ export const multiSelectFields = [
   "Homogenous leukoplakia",
   "Non homogenous leukoplakia",
   "Erythroleukoplakia",
-  "Erythroplakia",
+  "Erythroplakia",//
   "OSMF",
   "Lichen planus present",
   "Suspicious ulcer present",

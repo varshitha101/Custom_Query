@@ -411,7 +411,6 @@ async function validateData(data, expression, query, res) {
           if (item.type === "selector") {
             const { label, value } = item;
             const { selectedOption2, selectedOption3, selectedOption4 } = value;
-
             if (selectedOption4 === "patients1") {
               conditionMap[label] = option3Validator(selectedOption2, selectedOption3, patData, selectedOption4);
             } else if (selectedOption4 === "Form_1" && form1Data !== undefined && Object.keys(form1Data).length > 0) {

@@ -909,6 +909,7 @@ const data = [
         { name: "Nallarallahalli", id: "22242" },
         { name: "Battalahalli(Mindigal)", id: "22243" },
         { name: "Gutturu", id: "22244" },
+        { name: "Mindigal", id: "22442" },
         { name: "Yendahalli", id: "22245" },
         { name: "Boodanamari", id: "22246" },
         { name: "Gudasalahalli", id: "22247" },

@@ -65,3 +65,5 @@ This will:
   - Enabled OTP feature.
   - Uncommented out Session checker function.
   - Resolved issue related Gender in server/helper/option3Validator.js
+- **Version 0.12**:
+  - Changed for AND(when multiple-options is selected only patients with all those set of selected are displayed) to OR(when multiple-options is selected only patients with anyone those set of present are displayed)in multi-selection option
