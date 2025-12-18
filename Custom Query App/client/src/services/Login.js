@@ -62,100 +62,100 @@ export default async function handleLogin(
     const response = await axios.post(`${import.meta.env.VITE_BASE_SERVER_URL}/auth/login`, { fullUserEmail, userPassword, userWinID });
     console.log("response", response);
     // TESTING PURPOSES
-    if (response.status === 200) {
-      toast.success("Login successful!");
-      setUserUID(response.data.user);
-      sessionStorage.setItem("userUID", response.data.user);
-      localStorage.setItem("winID", userWinID);
-      toast.success("Login successful!");
-      setIsSubmitClick(false);
-      setShowOtpDialog(false);
-      navigate("/home");
-    }
-    // TESTING PURPOSES
-    // Uncomment below code for production
     // if (response.status === 200) {
+    //   toast.success("Login successful!");
     //   setUserUID(response.data.user);
     //   sessionStorage.setItem("userUID", response.data.user);
-    //   if (response.data.message === "User authenticated successfully") {
-    //     localStorage.setItem("winID", userWinID);
-    //     toast.success("Login successful!");
-
-    //     setIsSubmitClick(false);
-    //     setShowOtpDialog(false);
-    //     navigate("/home");
-    //   } else if (
-    //     response.data.message === "Login time updated successfully. Please verify OTP." ||
-    //     response.data.message === "PC identifier updated successfully. Please verify OTP." ||
-    //     response.data.message === "Login time and PC identifier updated successfully. Please verify OTP."
-    //   ) {
-    //     if (!response.data.phone) {
-    //       toast.error("Phone number not found for user. Please contact support.");
-    //       return;
-    //     }
-    //     let formattedPhone = String(response.data.phone);
-    //     if (formattedPhone && !formattedPhone.startsWith("+91")) {
-    //       formattedPhone = "+91" + formattedPhone;
-    //     }
-    //     setPhoneNumber(formattedPhone);
-    //     const phoneRegex = /^\+91\d{10}$/;
-    //     if (!phoneRegex.test(formattedPhone)) {
-    //       toast.error("Phone number is not valid.");
-    //       return;
-    //     }
-    //     try {
-    //       if (!window.recaptchaVerifier) {
-    //         window.recaptchaVerifier = new RecaptchaVerifier(auth, "recaptcha-container", {
-    //           size: "invisible",
-    //           callback: (response) => {
-    //             console.log("Recaptcha verified: " + response);
-    //           },
-    //         });
-    //       }
-    //       const appVerifier = window.recaptchaVerifier;
-    //       setShowOtpDialog(true);
-    //       toast.info(`Sending OTP to ${maskPhoneNumber(formattedPhone)}`);
-
-    //       try {
-    //         console.log("auth", auth);
-    //         console.log("Formatted Phone:", formattedPhone);
-    //         console.log("App Verifier:", appVerifier);
-
-    //         const result = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
-    //         console.log("Result from signInWithPhoneNumber:", result);
-
-    //         if (result && result.verificationId) {
-    //           console.log("Verification ID:", result);
-    //           setIsSucessfullSigninwithPhoneNumber(true);
-    //           setShowOtpDialog(true);
-    //           toast.success("OTP sent successfully. Please check your phone.");
-    //         }
-    //         setConfirmationResult(result);
-    //         console.log("Flag 4");
-    //       } catch (error) {
-    //         setIsSucessfullSigninwithPhoneNumber(false);
-    //         setShowOtpDialog(false);
-    //         toast.error("Failed to send OTP. Please try again.");
-    //         console.error("Error during phone number sign-in:", error);
-    //         if (error.code === "auth/too-many-requests") {
-    //           toast.error("Too many requests. Please try again later.");
-    //           console.error("Too many requests:", error);
-    //           return;
-    //         }
-    //         if (error.code === "auth/captcha-check-failed") {
-    //           toast.error("Captcha verification failed. Please try again.");
-    //           console.error("Captcha verification failed:", error);
-    //           return;
-    //         }
-    //       }
-    //     } catch (error) {
-    //       console.error("Error sending OTP:", error);
-    //       toast.error("Failed to send OTP, please try again.");
-    //       setShowOtpDialog(false);
-    //       return;
-    //     }
-    //   }
+    //   localStorage.setItem("winID", userWinID);
+    //   toast.success("Login successful!");
+    //   setIsSubmitClick(false);
+    //   setShowOtpDialog(false);
+    //   navigate("/home");
     // }
+    // TESTING PURPOSES
+    // Uncomment below code for production
+    if (response.status === 200) {
+      setUserUID(response.data.user);
+      sessionStorage.setItem("userUID", response.data.user);
+      if (response.data.message === "User authenticated successfully") {
+        localStorage.setItem("winID", userWinID);
+        toast.success("Login successful!");
+
+        setIsSubmitClick(false);
+        setShowOtpDialog(false);
+        navigate("/home");
+      } else if (
+        response.data.message === "Login time updated successfully. Please verify OTP." ||
+        response.data.message === "PC identifier updated successfully. Please verify OTP." ||
+        response.data.message === "Login time and PC identifier updated successfully. Please verify OTP."
+      ) {
+        if (!response.data.phone) {
+          toast.error("Phone number not found for user. Please contact support.");
+          return;
+        }
+        let formattedPhone = String(response.data.phone);
+        if (formattedPhone && !formattedPhone.startsWith("+91")) {
+          formattedPhone = "+91" + formattedPhone;
+        }
+        setPhoneNumber(formattedPhone);
+        const phoneRegex = /^\+91\d{10}$/;
+        if (!phoneRegex.test(formattedPhone)) {
+          toast.error("Phone number is not valid.");
+          return;
+        }
+        try {
+          if (!window.recaptchaVerifier) {
+            window.recaptchaVerifier = new RecaptchaVerifier(auth, "recaptcha-container", {
+              size: "invisible",
+              callback: (response) => {
+                console.log("Recaptcha verified: " + response);
+              },
+            });
+          }
+          const appVerifier = window.recaptchaVerifier;
+          setShowOtpDialog(true);
+          toast.info(`Sending OTP to ${maskPhoneNumber(formattedPhone)}`);
+
+          try {
+            console.log("auth", auth);
+            console.log("Formatted Phone:", formattedPhone);
+            console.log("App Verifier:", appVerifier);
+
+            const result = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
+            console.log("Result from signInWithPhoneNumber:", result);
+
+            if (result && result.verificationId) {
+              console.log("Verification ID:", result);
+              setIsSucessfullSigninwithPhoneNumber(true);
+              setShowOtpDialog(true);
+              toast.success("OTP sent successfully. Please check your phone.");
+            }
+            setConfirmationResult(result);
+            console.log("Flag 4");
+          } catch (error) {
+            setIsSucessfullSigninwithPhoneNumber(false);
+            setShowOtpDialog(false);
+            toast.error("Failed to send OTP. Please try again.");
+            console.error("Error during phone number sign-in:", error);
+            if (error.code === "auth/too-many-requests") {
+              toast.error("Too many requests. Please try again later.");
+              console.error("Too many requests:", error);
+              return;
+            }
+            if (error.code === "auth/captcha-check-failed") {
+              toast.error("Captcha verification failed. Please try again.");
+              console.error("Captcha verification failed:", error);
+              return;
+            }
+          }
+        } catch (error) {
+          console.error("Error sending OTP:", error);
+          toast.error("Failed to send OTP, please try again.");
+          setShowOtpDialog(false);
+          return;
+        }
+      }
+    }
     // Uncomment below code for production
   } catch (error) {
     console.error("Login error:", error);
