@@ -7,16 +7,16 @@ import { patientNode, form_1Node, mvd, form3, Tcc } from "./option2MapDetails.js
  * @param {string} source
  * @returns {boolean} Returns true if the field value matches the expected value based on the source and field type.
  */
-export default function option3Validator(field, expectedValue, data, source) {
+export default function option3Validator(field, expectedValue, dataInfo, source) {
   try {
-    // let data = [];
-    // if (source !== "patients1") {
-    //   let keys = Object.keys(dataInfo);
-    //   let lastKey = keys[keys.length - 1];
-    //   data = dataInfo[lastKey];
-    // } else {
-    //   data = dataInfo;
-    // }
+    let data = [];
+    if (source !== "patients1") {
+      let keys = Object.keys(dataInfo);
+      let lastKey = keys[keys.length - 1];
+      data = dataInfo[lastKey];
+    } else {
+      data = dataInfo;
+    }
 
     if (source === "patients1") {
       if (field === "Age") {

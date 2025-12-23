@@ -3,7 +3,7 @@ import { ref, child, get } from "firebase/database";
 import option3Validator from "../utils/option3Validator.js";
 import util from "util";
 
-export default async function queryFetch1(req, res) {
+export default async function queryFetch_V2(req, res) {
   // Jan 1, 2024 00:00:00 (UTC). Phase 1: < stTime, Phase 2: >= stTime
   const stTime = 1704067200;
   try {

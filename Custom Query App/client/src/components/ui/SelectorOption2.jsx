@@ -1,7 +1,7 @@
 import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 
-export default function SelectorOption2({ value, onChange, inputValue, onInputChange, options, error, disabled, isDateSelect }) {
+export default function SelectorOption2({ value, onChange, inputValue, onInputChange, options, error, disabled, isDateSelect, disabledOptions = [] }) {
   return (
     <Autocomplete
       disabled={disabled}
@@ -12,7 +12,7 @@ export default function SelectorOption2({ value, onChange, inputValue, onInputCh
       options={options}
       getOptionLabel={(option) => option}
       isOptionEqualToValue={(a, b) => a === b}
-      getOptionDisabled={(option) => isDateSelect && option === "Date" && value !== "Date"}
+      getOptionDisabled={(option) => disabledOptions.includes(option) || (isDateSelect && option === "Date")}
       sx={{ width: 200 }}
       renderInput={(params) => (
         <TextField

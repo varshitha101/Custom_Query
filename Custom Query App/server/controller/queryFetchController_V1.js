@@ -1,7 +1,7 @@
-//
 import { database } from "../db/config.js";
 import { ref, child, get } from "firebase/database";
 import option3Validator from "../utils/option3Validator.js";
+import util from "util";
 
 const stTime = 1704047400;
 
@@ -14,14 +14,14 @@ const stTime = 1704047400;
  * @param {import('express').Response} res - The response object.
  * @returns response with patient data based on the provided expression
  */
-export default async function  (req, res) {
+export default async function queryFetch_V1(req, res) {
   console.log("\n\n");
   console.log("====== Query Fetch Starts ====");
   const reqStartTime = Date.now();
   try {
     const { expression, expressionString } = req.body;
     console.log("Expression:", expression);
-    console.log("Expression String:", expressionString);
+    console.log("Expression String:", util.inspect(expression, { depth: null, maxArrayLength: null }));
 
     const dbRef = ref(database);
 
@@ -34,6 +34,7 @@ export default async function  (req, res) {
       requiredNodes.push("Form_1");
     }
 
+    console.log("Required Nodes:", requiredNodes);
     const snapshots = {};
 
     await Promise.all(
@@ -83,22 +84,31 @@ async function validateData(data, expression, query, res) {
   const priorityOrder = query.includes("OR") ? ["patients1", "Form_1", "Form_3", "manual_vital_data", "tcc_form"] : ["tcc_form", "manual_vital_data", "Form_3", "Form_1", "patients1"];
 
   let isDatePresent = false;
+  let isDateRangePresent = false;
+  let isPhaseDatePresent = false;
   let selectedDates = { SDate: null, LDate: null };
 
   expression.forEach((item) => {
     if (item.type === "selector" && item.value?.selectedOption2 === "Date" && item.value?.selectedOption4 === "general") {
-      isDatePresent = true;
-      selectedDates = {
-        SDate: item.value?.selectedOption3?.SDate || null,
-        LDate: item.value?.selectedOption3?.LDate || null,
-      };
+      isDateRangePresent = true;
+      selectedDates.SDate = item.value?.selectedOption3?.SDate;
+      selectedDates.LDate = item.value?.selectedOption3?.LDate;
+    }
+  });
+  expression.forEach((item) => {
+    if (item.type === "selector" && (item.value?.selectedOption2 === "Phase 1" || item.value?.selectedOption2 === "Phase 2") && item.value?.selectedOption4 === "general") {
+      isPhaseDatePresent = true;
     }
   });
 
+  if (isDateRangePresent && isPhaseDatePresent) {
+    return res.status(400).json({ message: "Cannot have both Date and Phase selectors in the same query" });
+  }
+  isDatePresent = isDateRangePresent || isPhaseDatePresent;
   let isPhase1 = false;
   let isPhase2 = false;
   let isBetween = false;
-  if (isDatePresent) {
+  if (isDateRangePresent) {
     if (selectedDates.SDate <= stTime && selectedDates.LDate <= stTime) {
       isPhase1 = true;
     } else if (selectedDates.SDate >= stTime && selectedDates.LDate >= stTime) {
@@ -106,6 +116,16 @@ async function validateData(data, expression, query, res) {
     } else {
       isBetween = true;
     }
+  }
+  if (isPhaseDatePresent) {
+    expression.forEach((item) => {
+      if (item.type === "selector" && item.value?.selectedOption2 === "Phase 1" && item.value?.selectedOption4 === "general") {
+        isPhase1 = true;
+      }
+      if (item.type === "selector" && item.value?.selectedOption2 === "Phase 2" && item.value?.selectedOption4 === "general") {
+        isPhase2 = true;
+      }
+    });
   }
 
   let patients = null;
@@ -130,45 +150,9 @@ async function validateData(data, expression, query, res) {
     return res.status(400).json({ message: "No data found" });
   }
 
-  /**
-   * This function calculates the optimal batch size based on the dataset size.
-   * It uses predefined batch sizes and their average durations to estimate the best batch size
-   * for processing the dataset efficiently.
-   * The function iterates through the predefined batch sizes and calculates the estimated total time
-   * for processing the dataset with each batch size.
-   * It returns the batch size that results in the minimum estimated total time.
-   * @param {number} datasetSize
-   * @returns {number} optimal batch size
-   */
-  function getOptimalBatchSize(datasetSize) {
-    const batchSizes = [100, 50, 40, 30, 20, 10, 5];
-    const avgDurations = [5917.6, 5774.0, 5801.6, 4698.1, 4912.1, 5674.3, 11075.2];
-
-    const referenceSize = 136;
-    let bestBatchSize = null;
-    let minEstimatedTotalTime = Infinity;
-
-    for (let i = 0; i < batchSizes.length; i++) {
-      const batchSize = batchSizes[i];
-      const avgDuration = avgDurations[i];
-
-      const batchesInRef = Math.ceil(referenceSize / batchSize);
-      const timePerBatch = avgDuration / batchesInRef;
-      const totalBatches = Math.ceil(datasetSize / batchSize);
-      const estimatedTotalTime = totalBatches * timePerBatch;
-
-      if (estimatedTotalTime < minEstimatedTotalTime) {
-        minEstimatedTotalTime = estimatedTotalTime;
-        bestBatchSize = batchSize;
-      }
-    }
-
-    return bestBatchSize;
-  }
-
   console.log("Total UUIDs to process: ", allUUIDsCount);
-  const BATCH_SIZE = getOptimalBatchSize(allUUIDsCount);
 
+  const BATCH_SIZE = 100;
   console.log("Batch size set to:", BATCH_SIZE);
 
   const allUUIDEntries = [];
@@ -211,6 +195,9 @@ async function validateData(data, expression, query, res) {
         let patData = {};
         let form1Data = {};
         let Form1_maxTimestamp = null;
+        let Form1_ph1MaxTimestamp = null;
+        let Form1_ph2MaxTimestamp = null;
+
         let form1Timesatamp = [];
         let MVD = {};
         let form3Data = {};
@@ -227,11 +214,31 @@ async function validateData(data, expression, query, res) {
           const form1CData = data["Form_1"][panchayathId]?.[villageId]?.[uuid] || {};
           if (form1CData) {
             if (isDatePresent) {
-              const timestampKeys = Object.keys(form1CData);
-              const filteredTimestamps = timestampKeys.filter((timestamp) => selectedDates.SDate <= Number(timestamp) && Number(timestamp) <= selectedDates.LDate);
-              Form1_maxTimestamp = Math.max(...filteredTimestamps.map(Number));
-              if (Form1_maxTimestamp !== -Infinity) {
-                form1Data[Form1_maxTimestamp] = form1CData[Form1_maxTimestamp];
+              if (isPhase1) {
+                const timestampKeys = Object.keys(form1CData);
+                const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
+                const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
+                if (maxTimestamp !== -Infinity) {
+                  Form1_maxTimestamp = maxTimestamp;
+                  Form1_ph1MaxTimestamp = maxTimestamp;
+                  form1Data[maxTimestamp] = form1CData[maxTimestamp];
+                }
+              } else if (isPhase2) {
+                const timestampKeys = Object.keys(form1CData);
+                const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp >= stTime);
+                const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
+                if (maxTimestamp !== -Infinity) {
+                  Form1_maxTimestamp = maxTimestamp;
+                  Form1_ph2MaxTimestamp = maxTimestamp;
+                  form1Data[maxTimestamp] = form1CData[maxTimestamp];
+                }
+              } else if (isBetween) {
+                const timestampKeys = Object.keys(form1CData);
+                const maxTimestamp = Math.max(...timestampKeys.map(Number));
+                if (maxTimestamp !== -Infinity) {
+                  Form1_maxTimestamp = maxTimestamp;
+                  form1Data[maxTimestamp] = form1CData[maxTimestamp];
+                }
               }
             } else {
               let maxPhase1Timestamp = null;
@@ -411,6 +418,8 @@ async function validateData(data, expression, query, res) {
           if (item.type === "selector") {
             const { label, value } = item;
             const { selectedOption2, selectedOption3, selectedOption4 } = value;
+            // console.log(selectedOption2, selectedOption3, selectedOption4);
+            console.log("Evaluating for label:", isPhaseDatePresent, isPhase1, Form1_ph1MaxTimestamp <= stTime, Form1_ph1MaxTimestamp, Form1_ph1MaxTimestamp !== null);
             if (selectedOption4 === "patients1") {
               conditionMap[label] = option3Validator(selectedOption2, selectedOption3, patData, selectedOption4);
             } else if (selectedOption4 === "Form_1" && form1Data !== undefined && Object.keys(form1Data).length > 0) {
@@ -425,7 +434,11 @@ async function validateData(data, expression, query, res) {
               conditionMap[label] = true;
             } else if (selectedOption4 === "general" && selectedOption2 === "Village" && selectedOption3 === villageId) {
               conditionMap[label] = true;
-            } else if (selectedOption4 === "general" && isDatePresent && selectedDates.SDate <= Form1_maxTimestamp && Form1_maxTimestamp <= selectedDates.LDate && selectedOption2 === "Date") {
+            } else if (selectedOption4 === "general" && selectedOption2 === "Date" && isDatePresent && selectedDates.SDate <= Form1_maxTimestamp && Form1_maxTimestamp <= selectedDates.LDate) {
+              conditionMap[label] = true;
+            } else if (selectedOption4 === "general" && selectedOption2 === "Phase 1" && isPhaseDatePresent && isPhase1 && Form1_ph1MaxTimestamp <= stTime && Form1_ph1MaxTimestamp !== null) {
+              conditionMap[label] = true;
+            } else if (selectedOption4 === "general" && selectedOption2 === "Phase 2" && isPhaseDatePresent && isPhase2 && Form1_ph2MaxTimestamp >= stTime && Form1_ph2MaxTimestamp !== null) {
               conditionMap[label] = true;
             } else {
               conditionMap[label] = false;
@@ -440,6 +453,7 @@ async function validateData(data, expression, query, res) {
 
         try {
           processedQuery = processedQuery.replace(/AND/g, "&&").replace(/OR/g, "||");
+          console.log("processedQuery", processedQuery);
 
           if (eval(processedQuery)) {
             processedCount++;

@@ -24,7 +24,7 @@ import DropCard from "../components/DropCard";
 import { multiSelectFields, rangeSelectFields, rangeSelectPlusEnterFields } from "../services/utils/specialCaseFields";
 import logo from "../assets/logo.png";
 import { patientNode, form_1Node, mvdNode, form_3Node, tcc_form } from "../services/utils/NodeDetail";
-import handleQueryFetch from "../services/QueryFetch_V2";
+import handleQueryFetch from "../services/QueryFetch_V1";
 import validateExpression from "../services/utils/ExpressionVaidator";
 
 export default function Home() {
@@ -41,6 +41,7 @@ export default function Home() {
   //     navigate("/");
   //   }
   // }, [navigate, user]);
+
   const shakeAnimation = keyframes`
     0%, 100% { transform: translateX(0); }
     25% { transform: translateX(-5px); }
@@ -65,6 +66,7 @@ export default function Home() {
   const [recivedLength, setRecivedLength] = useState(0);
   const [isReciving, setIsReciving] = useState(false);
   const [isLogoutClicked, setIsLogoutClicked] = useState(false);
+  const [isDateSelect, setIsDateSelect] = useState(false);
   const choiceSelectors = [
     { id: 10, name: "AND" },
     { id: 11, name: "OR" },
@@ -151,7 +153,12 @@ export default function Home() {
         .filter((item) => item !== null) // Remove null values from result
     );
   }, [selectors]);
-
+  // Effect to check if any selector has "Date" as selectedOption2
+  // This will set isDateSelect to true if any selector has "Date" selected
+  useEffect(() => {
+    const hasDate = selectors.some((sel) => sel.selectedOption2 === "Date");
+    setIsDateSelect(hasDate);
+  }, [selectors]);
   /**
    * Function to handle the logout submission
    */
@@ -498,6 +505,7 @@ export default function Home() {
                       selectors={selectors}
                       setSelectors={setSelectors}
                       setExpression={setExpression}
+                      isDateSelect={isDateSelect}
                     />
                   </Box>
                 </Fade>

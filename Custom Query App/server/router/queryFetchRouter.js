@@ -1,6 +1,6 @@
 import { Router } from "express";
-import queryFetch_V1 from "../controller/queryFetchController1.js";
-import queryFetch_V2 from "../controller/queryFetchController.js";
+import queryFetch_V1 from "../controller/queryFetchController_V1.js";
+import queryFetch_V2 from "../controller/queryFetchController_V2.js";
 
 const router = Router();
 

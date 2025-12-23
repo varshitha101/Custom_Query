@@ -18,7 +18,7 @@ import RangeSelector from "./ui/RangeSelector";
 import RangeInputSelector from "./ui/RangeInputSelector";
 import MultiSelect from "./ui/MultiSelect";
 
-export default function OptionSelector({ id, data, onDelete, errorSelectors, selectors, setSelectors, onAdd, setExpression }) {
+export default function OptionSelector({ id, data, onDelete, errorSelectors, selectors, setSelectors, onAdd, setExpression, isDateSelect }) {
   const selector = selectors.find((s) => s.id === id);
   const [inputValue1, setInputValue1] = useState("");
   const [inputValue2, setInputValue2] = useState("");
@@ -26,7 +26,16 @@ export default function OptionSelector({ id, data, onDelete, errorSelectors, sel
   const [errorOption1, seterrorOption1] = useState(false);
   const [errorOption2, seterrorOption2] = useState(false);
   const [errorOption3, seterrorOption3] = useState(false);
+  const selectedOptions2 = selectors.map((s) => s.selectedOption2);
+  const disableDate = selectedOptions2.includes("Phase 1") || selectedOptions2.includes("Phase 2");
+  const disablePhase = selectedOptions2.includes("Date");
 
+  const disabledOptions = [];
+  if (disableDate) disabledOptions.push("Date");
+  if (disablePhase) {
+    disabledOptions.push("Phase 1");
+    disabledOptions.push("Phase 2");
+  }
   // Reset error states when selector changes
   useEffect(() => {
     if (selector?.selectedOption1 !== null) {
@@ -267,6 +276,8 @@ export default function OptionSelector({ id, data, onDelete, errorSelectors, sel
         options={getSelectedOption2()}
         error={errorOption2}
         disabled={!selector?.selectedOption1}
+        isDateSelect={isDateSelect}
+        disabledOptions={disabledOptions}
       />
 
       {selector?.selectedOption2 === "Date" ? (
