@@ -1,7 +1,7 @@
 //
 import { database } from "../db/config.js";
 import { ref, child, get } from "firebase/database";
-import option3Validator from "../helper/option3Validator.js";
+import option3Validator from "../utils/option3Validator.js";
 
 const stTime = 1704047400;
 
@@ -14,7 +14,7 @@ const stTime = 1704047400;
  * @param {import('express').Response} res - The response object.
  * @returns response with patient data based on the provided expression
  */
-export default async function patientData(req, res) {
+export default async function  (req, res) {
   console.log("\n\n");
   console.log("====== Query Fetch Starts ====");
   const reqStartTime = Date.now();

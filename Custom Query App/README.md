@@ -60,10 +60,22 @@ This will:
 
 ## Version Control Notes
 
-- **Version 0.10**: Initial base version, stable and error-free.
+- **Version 0.10**:
+
+  - Initial base version, stable and error-free.
+
 - **Version 0.11**:
+
   - Enabled OTP feature.
   - Uncommented out Session checker function.
   - Resolved issue related Gender in server/helper/option3Validator.js
+
 - **Version 0.12**:
+
   - Changed for AND(when multiple-options is selected only patients with all those set of selected are displayed) to OR(when multiple-options is selected only patients with anyone those set of present are displayed)in multi-selection option
+
+- **Version 0.13**:
+
+  - Update from linear processsing to binary processing
+  - Added options to select Phase 1 and Phase 2 
+  - Allow multiple dates to be selected

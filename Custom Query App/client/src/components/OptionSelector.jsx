@@ -13,11 +13,12 @@ import SelectorOption1 from "./ui/SelectorOption1";
 import SelectorOption2 from "./ui/SelectorOption2";
 import SingleOptionSelect from "./ui/SingleOptionSelect";
 import DateSelector from "./ui/DateSelector";
+import PhaseDateSelector from "./ui/PhaseDateSelector";
 import RangeSelector from "./ui/RangeSelector";
 import RangeInputSelector from "./ui/RangeInputSelector";
 import MultiSelect from "./ui/MultiSelect";
 
-export default function OptionSelector({ id, data, onDelete, errorSelectors, selectors, setSelectors, onAdd, setExpression, isDateSelect }) {
+export default function OptionSelector({ id, data, onDelete, errorSelectors, selectors, setSelectors, onAdd, setExpression }) {
   const selector = selectors.find((s) => s.id === id);
   const [inputValue1, setInputValue1] = useState("");
   const [inputValue2, setInputValue2] = useState("");
@@ -96,13 +97,18 @@ export default function OptionSelector({ id, data, onDelete, errorSelectors, sel
     (event, newSelectedOption2) => {
       setInputValue3("");
       setExpression([]);
+
+      // For "Phase 1" / "Phase 2" we must set a non-null selectedOption3
+      // so the selector is considered complete (Home.jsx only needs a non-null value here).
+      const isPhaseDate = ["Phase 1", "Phase 2"].includes(newSelectedOption2);
+
       setSelectors((prev) =>
         prev.map((s) =>
           s.id === id
             ? {
                 ...s,
                 selectedOption2: newSelectedOption2,
-                selectedOption3: null,
+                selectedOption3: isPhaseDate ? { value: newSelectedOption2 } : null,
               }
             : s
         )
@@ -261,12 +267,13 @@ export default function OptionSelector({ id, data, onDelete, errorSelectors, sel
         options={getSelectedOption2()}
         error={errorOption2}
         disabled={!selector?.selectedOption1}
-        isDateSelect={isDateSelect}
       />
 
       {selector?.selectedOption2 === "Date" ? (
         // If the second option is "Date", render DateSelector
         <DateSelector value={selector?.selectedOption3} onChange={handleSelectedOption3Change} />
+      ) : ["Phase 1", "Phase 2"].includes(selector?.selectedOption2) ? (
+        <PhaseDateSelector option={selector?.selectedOption2} />
       ) : rangeSelectFields.includes(selector?.selectedOption2) ? (
         // If the second option is a range select field, render RangeSelector
         <RangeSelector

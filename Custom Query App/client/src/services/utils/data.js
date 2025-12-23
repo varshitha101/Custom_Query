@@ -624,7 +624,7 @@ const data = [
   {
     id: 4,
     msg: "General",
-    fields: ["Village", "Panchayath", "Date"],
+    fields: ["Village", "Panchayath", "Date", "Phase 1", "Phase 2"],
     options: {
       Panchayath: [
         { name: "Anoor", id: "01" },
@@ -1095,6 +1095,7 @@ const data = [
         { name: "Varadenahalli", id: "35413" },
       ],
       Date: [{ SDate: "", LDate: "" }],
+      
     },
   },
 ];

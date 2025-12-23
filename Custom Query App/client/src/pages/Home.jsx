@@ -24,7 +24,7 @@ import DropCard from "../components/DropCard";
 import { multiSelectFields, rangeSelectFields, rangeSelectPlusEnterFields } from "../services/utils/specialCaseFields";
 import logo from "../assets/logo.png";
 import { patientNode, form_1Node, mvdNode, form_3Node, tcc_form } from "../services/utils/NodeDetail";
-import handleQueryFetch from "../services/QueryFetch";
+import handleQueryFetch from "../services/QueryFetch_V2";
 import validateExpression from "../services/utils/ExpressionVaidator";
 
 export default function Home() {
@@ -35,18 +35,18 @@ export default function Home() {
   const user = AuthChecker();
   // Effect to check if the user is unauthorized
   // If the user is unauthorized, it redirects to the login page and shows an error message
-  useEffect(() => {
-    if (user === false) {
-      toast.error("Unauthorized access");
-      navigate("/");
-    }
-  }, [navigate, user]);
+  // useEffect(() => {
+  //   if (user === false) {
+  //     toast.error("Unauthorized access");
+  //     navigate("/");
+  //   }
+  // }, [navigate, user]);
   const shakeAnimation = keyframes`
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-5px); }
-  50% { transform: translateX(5px); }
-  75% { transform: translateX(-5px); }
-`;
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    50% { transform: translateX(5px); }
+    75% { transform: translateX(-5px); }
+  `;
   const [isInvalidDrop, setIsInvalidDrop] = useState(false);
   // State variables to manage selectors, expression, errors, results, loading state, and time tracking
   // selectors: Array of objects representing the selected options
@@ -62,7 +62,6 @@ export default function Home() {
   const [errorSelectors, setErrorSelectors] = useState([]);
   const [result, setResult] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isDateSelect, setIsDateSelect] = useState(false);
   const [recivedLength, setRecivedLength] = useState(0);
   const [isReciving, setIsReciving] = useState(false);
   const [isLogoutClicked, setIsLogoutClicked] = useState(false);
@@ -81,12 +80,6 @@ export default function Home() {
     tcc_form: "TCC Form",
     general: "Form 1",
   };
-  // Effect to check if any selector has "Date" as selectedOption2
-  // This will set isDateSelect to true if any selector has "Date" selected
-  useEffect(() => {
-    const hasDate = selectors.some((sel) => sel.selectedOption2 === "Date");
-    setIsDateSelect(hasDate);
-  }, [selectors]);
 
   // Effect to update the result state based on the selectors
   // It processes each selector and formats the selected options accordingly
@@ -96,6 +89,7 @@ export default function Home() {
         .map((s) => {
           if (s.selectedOption1 && s.selectedOption2 && s.selectedOption3) {
             const isDateField = s.selectedOption2 === "Date";
+            const isDatePhaseField = ["Phase 1", "Phase 2"].includes(s.selectedOption2);
             const isMultipleChoiceField = multiSelectFields.includes(s.selectedOption2);
             const isRangeSelectField = rangeSelectFields.includes(s.selectedOption2);
             const isRangeSelectPlusEnterFields = rangeSelectPlusEnterFields.includes(s.selectedOption2);
@@ -107,6 +101,12 @@ export default function Home() {
                 SDate: String(s.selectedOption3.SDate?.valueOf()).slice(0, 10),
                 LDate: String(s.selectedOption3.LDate?.valueOf() + 24 * 60 * 60 * 1000).slice(0, 10),
               };
+            } else if (isDatePhaseField) {
+              if (s.selectedOption2 === "Phase 1") {
+                option3Value = "> 1704047400"; // Dates before January 1, 2024
+              } else {
+                option3Value = "<= 1704047400"; // Dates after January 1, 2024
+              }
             } else if (isMultipleChoiceField) {
               option3Value = s.selectedOption3.map((item) => item.id);
             } else if (isRangeSelectField) {
@@ -498,7 +498,6 @@ export default function Home() {
                       selectors={selectors}
                       setSelectors={setSelectors}
                       setExpression={setExpression}
-                      isDateSelect={isDateSelect}
                     />
                   </Box>
                 </Fade>

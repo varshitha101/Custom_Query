@@ -26,7 +26,7 @@ export default async function handleQueryFetch(expression, expressionString, set
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60000); // 30 second timeout
 
-    const response = await fetch(`${import.meta.env.VITE_BASE_SERVER_URL}/query/fetch`, {
+    const response = await fetch(`${import.meta.env.VITE_BASE_SERVER_URL}/query/fetch/V1`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ expression, expressionString }),
@@ -1065,6 +1065,7 @@ export default async function handleQueryFetch(expression, expressionString, set
                     if (data === "nn") return "Not Now";
                     if (data === "nvr") return "Never";
                     if (data === "absnt") return "Never";
+                    if (data === "nt_spfd") return "";
                     else return data;
                   }
 
@@ -1081,6 +1082,7 @@ export default async function handleQueryFetch(expression, expressionString, set
                     if (data === "nn") return "Not now";
                     if (data === "nvr") return "Never";
                     if (data === "absnt") return "Never";
+                    if (data === "nt_spfd") return "";
                     else return data;
                   }
                   function mapping5(data) {
