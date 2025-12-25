@@ -1095,7 +1095,6 @@ const data = [
         { name: "Varadenahalli", id: "35413" },
       ],
       Date: [{ SDate: "", LDate: "" }],
-      
     },
   },
 ];

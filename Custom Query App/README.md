@@ -76,6 +76,5 @@ This will:
 
 - **Version 0.13**:
 
-  - Update from linear processsing to binary processing
-  - Added options to select Phase 1 and Phase 2 
-  - Allow multiple dates to be selected
+  - Added options to select Phase 1 and Phase 2.
+  - Allow multiple dates to be selected.

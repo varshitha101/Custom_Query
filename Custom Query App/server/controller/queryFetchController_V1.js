@@ -83,50 +83,43 @@ async function validateData(data, expression, query, res) {
 
   const priorityOrder = query.includes("OR") ? ["patients1", "Form_1", "Form_3", "manual_vital_data", "tcc_form"] : ["tcc_form", "manual_vital_data", "Form_3", "Form_1", "patients1"];
 
-  let isDatePresent = false;
   let isDateRangePresent = false;
   let isPhaseDatePresent = false;
   let selectedDates = { SDate: null, LDate: null };
+  let isPhase1 = false;
+  let isPhase2 = false;
+  let isBetween = false;
+  expression.forEach((item) => {
+    if (item.type !== "selector" || item.value?.selectedOption4 !== "general") return;
 
-  expression.forEach((item) => {
-    if (item.type === "selector" && item.value?.selectedOption2 === "Date" && item.value?.selectedOption4 === "general") {
+    const option2 = item.value?.selectedOption2;
+
+    if (option2 === "Date") {
       isDateRangePresent = true;
-      selectedDates.SDate = item.value?.selectedOption3?.SDate;
-      selectedDates.LDate = item.value?.selectedOption3?.LDate;
+      if (item.value?.selectedOption3?.SDate <= stTime && item.value?.selectedOption3?.LDate <= stTime) {
+        isPhase1 = true;
+      } else if (item.value?.selectedOption3?.SDate >= stTime && item.value?.selectedOption3?.LDate >= stTime) {
+        isPhase2 = true;
+      } else {
+        isBetween = true;
+      }
     }
-  });
-  expression.forEach((item) => {
-    if (item.type === "selector" && (item.value?.selectedOption2 === "Phase 1" || item.value?.selectedOption2 === "Phase 2") && item.value?.selectedOption4 === "general") {
+
+    if (option2 === "Phase 1" || option2 === "Phase 2") {
       isPhaseDatePresent = true;
+      if (option2 === "Phase 1") {
+        isPhase1 = true;
+      }
+      if (option2 === "Phase 2") {
+        isPhase2 = true;
+      }
     }
   });
 
   if (isDateRangePresent && isPhaseDatePresent) {
     return res.status(400).json({ message: "Cannot have both Date and Phase selectors in the same query" });
   }
-  isDatePresent = isDateRangePresent || isPhaseDatePresent;
-  let isPhase1 = false;
-  let isPhase2 = false;
-  let isBetween = false;
-  if (isDateRangePresent) {
-    if (selectedDates.SDate <= stTime && selectedDates.LDate <= stTime) {
-      isPhase1 = true;
-    } else if (selectedDates.SDate >= stTime && selectedDates.LDate >= stTime) {
-      isPhase2 = true;
-    } else {
-      isBetween = true;
-    }
-  }
-  if (isPhaseDatePresent) {
-    expression.forEach((item) => {
-      if (item.type === "selector" && item.value?.selectedOption2 === "Phase 1" && item.value?.selectedOption4 === "general") {
-        isPhase1 = true;
-      }
-      if (item.type === "selector" && item.value?.selectedOption2 === "Phase 2" && item.value?.selectedOption4 === "general") {
-        isPhase2 = true;
-      }
-    });
-  }
+  let isDatePresent = isDateRangePresent || isPhaseDatePresent;
 
   let patients = null;
   let allUUIDsCount = 0;
@@ -214,30 +207,40 @@ async function validateData(data, expression, query, res) {
           const form1CData = data["Form_1"][panchayathId]?.[villageId]?.[uuid] || {};
           if (form1CData) {
             if (isDatePresent) {
-              if (isPhase1) {
-                const timestampKeys = Object.keys(form1CData);
-                const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
-                const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
-                if (maxTimestamp !== -Infinity) {
-                  Form1_maxTimestamp = maxTimestamp;
-                  Form1_ph1MaxTimestamp = maxTimestamp;
-                  form1Data[maxTimestamp] = form1CData[maxTimestamp];
+              const timestampKeys = Object.keys(form1CData);
+              if (isDateRangePresent) {
+                if (isPhase1) {
+                  const filteredPhase1Timestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
+                  Form1_ph1MaxTimestamp = Math.max(...filteredPhase1Timestamps);
+                  if (Form1_ph1MaxTimestamp !== -Infinity) {
+                    form1Data[Form1_ph1MaxTimestamp] = form1CData[Form1_ph1MaxTimestamp];
+                  }
+                } else if (isPhase2) {
+                  const filteredPhase2Timestamps = timestampKeys.filter((timestamp) => timestamp >= stTime);
+                  Form1_ph2MaxTimestamp = Math.max(...filteredPhase2Timestamps);
+                  if (Form1_ph2MaxTimestamp !== -Infinity) {
+                    form1Data[Form1_ph2MaxTimestamp] = form1CData[Form1_ph2MaxTimestamp];
+                  }
+                } else if (isBetween) {
+                  Form1_maxTimestamp = Math.max(...timestampKeys);
+                  if (Form1_maxTimestamp !== -Infinity) {
+                    form1Data[Form1_maxTimestamp] = form1CData[Form1_maxTimestamp];
+                  }
                 }
-              } else if (isPhase2) {
-                const timestampKeys = Object.keys(form1CData);
-                const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp >= stTime);
-                const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
-                if (maxTimestamp !== -Infinity) {
-                  Form1_maxTimestamp = maxTimestamp;
-                  Form1_ph2MaxTimestamp = maxTimestamp;
-                  form1Data[maxTimestamp] = form1CData[maxTimestamp];
+              } else if (isPhaseDatePresent) {
+                if (isPhase1) {
+                  const filteredPhase1Timestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
+                  Form1_ph1MaxTimestamp = Math.max(...filteredPhase1Timestamps);
+                  if (Form1_ph1MaxTimestamp !== -Infinity) {
+                    form1Data[Form1_ph1MaxTimestamp] = form1CData[Form1_ph1MaxTimestamp];
+                  }
                 }
-              } else if (isBetween) {
-                const timestampKeys = Object.keys(form1CData);
-                const maxTimestamp = Math.max(...timestampKeys.map(Number));
-                if (maxTimestamp !== -Infinity) {
-                  Form1_maxTimestamp = maxTimestamp;
-                  form1Data[maxTimestamp] = form1CData[maxTimestamp];
+                if (isPhase2) {
+                  const filteredPhase2Timestamps = timestampKeys.filter((timestamp) => timestamp >= stTime);
+                  Form1_ph2MaxTimestamp = Math.max(...filteredPhase2Timestamps);
+                  if (Form1_ph2MaxTimestamp !== -Infinity) {
+                    form1Data[Form1_ph2MaxTimestamp] = form1CData[Form1_ph2MaxTimestamp];
+                  }
                 }
               }
             } else {
@@ -269,25 +272,41 @@ async function validateData(data, expression, query, res) {
           const manualVitalData = data["manual_vital_data"][panchayathId]?.[villageId]?.[uuid] || {};
           if (manualVitalData) {
             if (isDatePresent) {
-              if (isPhase1) {
-                const timestampKeys = Object.keys(manualVitalData);
-                const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
-                const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
-                if (maxTimestamp !== -Infinity) {
-                  MVD[maxTimestamp] = manualVitalData[maxTimestamp];
+              const timestampKeys = Object.keys(manualVitalData);
+              if (isDateRangePresent) {
+                if (isPhase1) {
+                  const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
+                  const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
+                  if (maxTimestamp !== -Infinity) {
+                    MVD[maxTimestamp] = manualVitalData[maxTimestamp];
+                  }
+                } else if (isPhase2) {
+                  const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp >= stTime);
+                  const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
+                  if (maxTimestamp !== -Infinity) {
+                    MVD[maxTimestamp] = manualVitalData[maxTimestamp];
+                  }
+                } else if (isBetween) {
+                  const timestampKeys = Object.keys(manualVitalData);
+                  const maxTimestamp = Math.max(...timestampKeys.map(Number));
+                  if (maxTimestamp !== -Infinity) {
+                    MVD[maxTimestamp] = manualVitalData[maxTimestamp];
+                  }
                 }
-              } else if (isPhase2) {
-                const timestampKeys = Object.keys(manualVitalData);
-                const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp >= stTime);
-                const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
-                if (maxTimestamp !== -Infinity) {
-                  MVD[maxTimestamp] = manualVitalData[maxTimestamp];
+              } else if (isPhaseDatePresent) {
+                if (isPhase1) {
+                  const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
+                  const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
+                  if (maxTimestamp !== -Infinity) {
+                    MVD[maxTimestamp] = manualVitalData[maxTimestamp];
+                  }
                 }
-              } else if (isBetween) {
-                const timestampKeys = Object.keys(manualVitalData);
-                const maxTimestamp = Math.max(...timestampKeys.map(Number));
-                if (maxTimestamp !== -Infinity) {
-                  MVD[maxTimestamp] = manualVitalData[maxTimestamp];
+                if (isPhase2) {
+                  const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp >= stTime);
+                  const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
+                  if (maxTimestamp !== -Infinity) {
+                    MVD[maxTimestamp] = manualVitalData[maxTimestamp];
+                  }
                 }
               }
             } else {
@@ -318,25 +337,40 @@ async function validateData(data, expression, query, res) {
           const form3CData = data["Form_3"][panchayathId]?.[villageId]?.[uuid] || {};
           if (form3CData) {
             if (isDatePresent) {
-              if (isPhase1) {
-                const timestampKeys = Object.keys(form3CData);
-                const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
-                const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
-                if (maxTimestamp !== -Infinity) {
-                  form3Data[maxTimestamp] = form3CData[maxTimestamp];
+              const timestampKeys = Object.keys(form3CData);
+              if (isDateRangePresent) {
+                if (isPhase1) {
+                  const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
+                  const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
+                  if (maxTimestamp !== -Infinity) {
+                    form3Data[maxTimestamp] = form3CData[maxTimestamp];
+                  }
+                } else if (isPhase2) {
+                  const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp >= stTime);
+                  const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
+                  if (maxTimestamp !== -Infinity) {
+                    form3Data[maxTimestamp] = form3CData[maxTimestamp];
+                  }
+                } else if (isBetween) {
+                  const maxTimestamp = Math.max(...timestampKeys.map(Number));
+                  if (maxTimestamp !== -Infinity) {
+                    form3Data[maxTimestamp] = form3CData[maxTimestamp];
+                  }
                 }
-              } else if (isPhase2) {
-                const timestampKeys = Object.keys(form3CData);
-                const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp >= stTime);
-                const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
-                if (maxTimestamp !== -Infinity) {
-                  form3Data[maxTimestamp] = form3CData[maxTimestamp];
+              } else if (isPhaseDatePresent) {
+                if (isPhase1) {
+                  const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
+                  const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
+                  if (maxTimestamp !== -Infinity) {
+                    form3Data[maxTimestamp] = form3CData[maxTimestamp];
+                  }
                 }
-              } else if (isBetween) {
-                const timestampKeys = Object.keys(form3CData);
-                const maxTimestamp = Math.max(...timestampKeys.map(Number));
-                if (maxTimestamp !== -Infinity) {
-                  form3Data[maxTimestamp] = form3CData[maxTimestamp];
+                if (isPhase2) {
+                  const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp >= stTime);
+                  const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
+                  if (maxTimestamp !== -Infinity) {
+                    form3Data[maxTimestamp] = form3CData[maxTimestamp];
+                  }
                 }
               }
             } else {
@@ -367,25 +401,40 @@ async function validateData(data, expression, query, res) {
           const tccFormCData = data["tcc_form"][panchayathId]?.[villageId]?.[uuid] || {};
           if (tccFormCData) {
             if (isDatePresent) {
-              if (isPhase1) {
-                const timestampKeys = Object.keys(tccFormCData);
-                const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
-                const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
-                if (maxTimestamp !== -Infinity) {
-                  tccFormData[maxTimestamp] = tccFormCData[maxTimestamp];
+              const timestampKeys = Object.keys(tccFormCData);
+              if (isDateRangePresent) {
+                if (isPhase1) {
+                  const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
+                  const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
+                  if (maxTimestamp !== -Infinity) {
+                    tccFormData[maxTimestamp] = tccFormCData[maxTimestamp];
+                  }
+                } else if (isPhase2) {
+                  const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp >= stTime);
+                  const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
+                  if (maxTimestamp !== -Infinity) {
+                    tccFormData[maxTimestamp] = tccFormCData[maxTimestamp];
+                  }
+                } else if (isBetween) {
+                  const maxTimestamp = Math.max(...timestampKeys.map(Number));
+                  if (maxTimestamp !== -Infinity) {
+                    tccFormData[maxTimestamp] = tccFormCData[maxTimestamp];
+                  }
                 }
-              } else if (isPhase2) {
-                const timestampKeys = Object.keys(tccFormCData);
-                const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp >= stTime);
-                const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
-                if (maxTimestamp !== -Infinity) {
-                  tccFormData[maxTimestamp] = tccFormCData[maxTimestamp];
+              } else if (isPhaseDatePresent) {
+                if (isPhase1) {
+                  const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
+                  const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
+                  if (maxTimestamp !== -Infinity) {
+                    tccFormData[maxTimestamp] = tccFormCData[maxTimestamp];
+                  }
                 }
-              } else if (isBetween) {
-                const timestampKeys = Object.keys(tccFormCData);
-                const maxTimestamp = Math.max(...timestampKeys.map(Number));
-                if (maxTimestamp !== -Infinity) {
-                  tccFormData[maxTimestamp] = tccFormCData[maxTimestamp];
+                if (isPhase2) {
+                  const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp >= stTime);
+                  const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
+                  if (maxTimestamp !== -Infinity) {
+                    tccFormData[maxTimestamp] = tccFormCData[maxTimestamp];
+                  }
                 }
               }
             } else {
@@ -419,7 +468,7 @@ async function validateData(data, expression, query, res) {
             const { label, value } = item;
             const { selectedOption2, selectedOption3, selectedOption4 } = value;
             // console.log(selectedOption2, selectedOption3, selectedOption4);
-            console.log("Evaluating for label:", isPhaseDatePresent, isPhase1, Form1_ph1MaxTimestamp <= stTime, Form1_ph1MaxTimestamp, Form1_ph1MaxTimestamp !== null);
+            // console.log("Evaluating for label:", isPhaseDatePresent, isPhase1, Form1_ph1MaxTimestamp <= stTime, Form1_ph1MaxTimestamp, Form1_ph1MaxTimestamp !== null);
             if (selectedOption4 === "patients1") {
               conditionMap[label] = option3Validator(selectedOption2, selectedOption3, patData, selectedOption4);
             } else if (selectedOption4 === "Form_1" && form1Data !== undefined && Object.keys(form1Data).length > 0) {
@@ -434,7 +483,7 @@ async function validateData(data, expression, query, res) {
               conditionMap[label] = true;
             } else if (selectedOption4 === "general" && selectedOption2 === "Village" && selectedOption3 === villageId) {
               conditionMap[label] = true;
-            } else if (selectedOption4 === "general" && selectedOption2 === "Date" && isDatePresent && selectedDates.SDate <= Form1_maxTimestamp && Form1_maxTimestamp <= selectedDates.LDate) {
+            } else if (selectedOption4 === "general" && isDatePresent && selectedDates.SDate <= Form1_maxTimestamp && Form1_maxTimestamp <= selectedDates.LDate && selectedOption2 === "Date") {
               conditionMap[label] = true;
             } else if (selectedOption4 === "general" && selectedOption2 === "Phase 1" && isPhaseDatePresent && isPhase1 && Form1_ph1MaxTimestamp <= stTime && Form1_ph1MaxTimestamp !== null) {
               conditionMap[label] = true;
@@ -478,34 +527,45 @@ async function validateData(data, expression, query, res) {
             }
             const formNode = formNodes.filter((node) => !requiredNodes.includes(node));
 
+            // console.log("Fetching additional nodes for UUID:", uuid, "Nodes:", formNode);
+
             const fetchPromises = formNode.map(async (node) => {
               try {
                 const snapshot = await get(child(dbRef, `${node}/${panchayathId}/${villageId}/${uuid}`));
                 if (snapshot.exists()) {
+                  // console.log(`fetching data ${node}/${panchayathId}/${villageId}/${uuid}`);
                   const nodeData = snapshot.val();
                   if (node !== "patients1") {
                     if (isDatePresent) {
                       if (isPhase1) {
+                        // console.log("In phase 1");
+
                         const filteredTimestamps = Object.keys(nodeData).filter((timestamp) => timestamp <= stTime);
                         const maxFilteredTimestamp = Math.max(...filteredTimestamps.map(Number));
                         if (maxFilteredTimestamp !== -Infinity) {
                           infoObject[node] = {
                             [maxFilteredTimestamp]: nodeData[maxFilteredTimestamp],
                           };
+                          // console.log("Phase 1 infoObject[node]: ", infoObject[node]);
                         } else {
                           infoObject[node] = {};
                         }
-                      } else if (isPhase2) {
+                      }
+                      if (isPhase2) {
+                        // console.log("In phase 2");
                         const filteredTimestamps = Object.keys(nodeData).filter((timestamp) => timestamp >= stTime);
                         const maxFilteredTimestamp = Math.max(...filteredTimestamps.map(Number));
                         if (maxFilteredTimestamp !== -Infinity) {
                           infoObject[node] = {
                             [maxFilteredTimestamp]: nodeData[maxFilteredTimestamp],
                           };
+                          // console.log("Phase 2 infoObject[node]: ", infoObject[node]);
                         } else {
                           infoObject[node] = {};
                         }
-                      } else if (isBetween) {
+                      }
+                      if (isBetween) {
+                        console.log("In phase b/w");
                         const timestampKeys = Object.keys(nodeData);
                         const maxTimestamp = Math.max(...timestampKeys.map(Number));
                         if (maxTimestamp !== -Infinity) {
@@ -545,6 +605,16 @@ async function validateData(data, expression, query, res) {
                 } else {
                   infoObject[node] = {};
                 }
+                // console.log(`Fetched ${node}/${panchayathId}/${villageId}/${uuid} successfully.`);
+                let level1 = 0;
+                let level2 = 0;
+                Object.keys(infoObject[node]).forEach((key1) => {
+                  level1++;
+                  Object.keys(infoObject[node][key1]).forEach((key2) => {
+                    level2++;
+                  });
+                });
+                // console.log(`Data levels for ${node} - Level 1 keys: ${level1}, Level 2 keys: ${level2}`);
               } catch (err) {
                 console.error(`Error fetching ${node} for UUID ${uuid}:`, err);
                 infoObject[node] = null;

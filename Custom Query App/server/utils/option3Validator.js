@@ -111,8 +111,14 @@ export default function option3Validator(field, expectedValue, dataInfo, source)
         return false;
       } else if (field === "Marital Status") {
         const actualValue = data[patientNode[field]];
-
+          
+        if (expectedValue === "Single") expectedValue = "sng";
+        if (expectedValue === "Married") expectedValue = "mrd";
+        if (expectedValue === "Widow") expectedValue = "wdw";
+        if (expectedValue === "Widower") expectedValue = "wdwr";
+        if (expectedValue === "Divorced") expectedValue = "dvcd";
         if (actualValue !== undefined) {
+          console.log(actualValue.toLowerCase(), expectedValue.toLowerCase(), actualValue.toLowerCase() === expectedValue.toLowerCase());
           if (actualValue.toLowerCase() === expectedValue.toLowerCase()) {
             return true;
           }

@@ -35,12 +35,12 @@ export default function Home() {
   const user = AuthChecker();
   // Effect to check if the user is unauthorized
   // If the user is unauthorized, it redirects to the login page and shows an error message
-  // useEffect(() => {
-  //   if (user === false) {
-  //     toast.error("Unauthorized access");
-  //     navigate("/");
-  //   }
-  // }, [navigate, user]);
+  useEffect(() => {
+    if (user === false) {
+      toast.error("Unauthorized access");
+      navigate("/");
+    }
+  }, [navigate, user]);
 
   const shakeAnimation = keyframes`
     0%, 100% { transform: translateX(0); }
@@ -583,7 +583,7 @@ export default function Home() {
           right: "10px",
           color: "gray",
         }}>
-        Version 0.12
+        Version 0.13
       </Typography>
     </Box>
   );
