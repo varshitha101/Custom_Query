@@ -9,17 +9,33 @@ import { patientNode, form_1Node, mvd, form3, Tcc } from "./option2MapDetails.js
  */
 export default function option3Validator(field, expectedValue, dataInfo, source) {
   try {
-    let data = [];
+    // console.log("option3Validator called with:", { field, expectedValue, source });
+    const safeDataInfo = dataInfo && typeof dataInfo === "object" ? dataInfo : {};
+    let data;
     if (source !== "patients1") {
-      let keys = Object.keys(dataInfo);
-      let lastKey = keys[keys.length - 1];
-      data = dataInfo[lastKey];
+      const keys = Object.keys(safeDataInfo);
+      const lastKey = keys[keys.length - 1];
+      data = lastKey !== undefined ? safeDataInfo[lastKey] : undefined;
     } else {
-      data = dataInfo;
+      data = safeDataInfo;
     }
+    const hasAnyData = (value) => {
+      if (value === null || value === undefined) return false;
+      if (Array.isArray(value)) return value.length > 0;
+      if (typeof value === "object") return Object.keys(value).length > 0;
+      if (typeof value === "string") return value.trim().length > 0;
+      return true;
+    };
+
+    // Presence checks used across all sources.
+    // In this app, "Yes" means data exists, "No" means data should not be there.
 
     if (source === "patients1") {
-      if (field === "Age") {
+      if (field === "Yes") {
+        return hasAnyData(data);
+      } else if (field === "No") {
+        return !hasAnyData(data);
+      } else if (field === "Age") {
         const actualValue = data[patientNode[field]];
         if (actualValue !== undefined) {
           if (expectedValue.startsWith("< ")) {
@@ -111,7 +127,7 @@ export default function option3Validator(field, expectedValue, dataInfo, source)
         return false;
       } else if (field === "Marital Status") {
         const actualValue = data[patientNode[field]];
-          
+
         if (expectedValue === "Single") expectedValue = "sng";
         if (expectedValue === "Married") expectedValue = "mrd";
         if (expectedValue === "Widow") expectedValue = "wdw";
@@ -291,7 +307,11 @@ export default function option3Validator(field, expectedValue, dataInfo, source)
         return false;
       }
     } else if (source === "Form_1") {
-      if (field === "Have you heard about cancer ?") {
+      if (field === "Yes") {
+        return hasAnyData(data);
+      } else if (field === "No") {
+        return !hasAnyData(data);
+      } else if (field === "Have you heard about cancer ?") {
         const actualValue = data[form_1Node[field]];
 
         if (expectedValue === "Yes") {
@@ -1282,7 +1302,11 @@ export default function option3Validator(field, expectedValue, dataInfo, source)
         return false;
       }
     } else if (source === "manual_vital_data") {
-      if (field === "Heart Rate") {
+      if (field === "Yes") {
+        return hasAnyData(data);
+      } else if (field === "No") {
+        return !hasAnyData(data);
+      } else if (field === "Heart Rate") {
         const actualValue = data[mvd[field]];
 
         if (actualValue !== undefined) {
@@ -1497,7 +1521,11 @@ export default function option3Validator(field, expectedValue, dataInfo, source)
         return false;
       }
     } else if (source === "Form_3") {
-      if (field === "Screening done for") {
+      if (field === "Yes") {
+        return hasAnyData(data);
+      } else if (field === "No") {
+        return !hasAnyData(data);
+      } else if (field === "Screening done for") {
         const scrData = data[form3[field]];
         if (!scrData) return false;
         const labelToKey = {
@@ -2287,7 +2315,11 @@ export default function option3Validator(field, expectedValue, dataInfo, source)
         return false;
       }
     } else if (source === "tcc_form") {
-      if (field === "Amount spent on tobacco per day") {
+      if (field === "Yes") {
+        return hasAnyData(data);
+      } else if (field === "No") {
+        return !hasAnyData(data);
+      } else if (field === "Amount spent on tobacco per day") {
         const actualValue = data[Tcc[field]];
 
         if (actualValue !== undefined) {

@@ -13,6 +13,8 @@ const data = [
     id: 1,
     msg: "Survey",
     fields: [
+      "Yes",
+      "No",
       "ID Proof Type",
       "Number of family members",
       "Status",
@@ -194,6 +196,8 @@ const data = [
     id: 2,
     msg: "Screening",
     fields: [
+      "Yes",
+      "No",
       "Heart Rate",
       "SPO2",
       "BP/SBP",
@@ -434,6 +438,8 @@ const data = [
     id: 3,
     msg: "TCC",
     fields: [
+      "Yes",
+      "No",
       "Amount spent on tobacco per day",
       "Types of tobacco consumption",
       "Frequency of use / day [Smoked tobacco - beedi, cigarettes]",

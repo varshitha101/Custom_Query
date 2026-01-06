@@ -35,12 +35,12 @@ export default function Home() {
   const user = AuthChecker();
   // Effect to check if the user is unauthorized
   // If the user is unauthorized, it redirects to the login page and shows an error message
-  useEffect(() => {
-    if (user === false) {
-      toast.error("Unauthorized access");
-      navigate("/");
-    }
-  }, [navigate, user]);
+  // useEffect(() => {
+  //   if (user === false) {
+  //     toast.error("Unauthorized access");
+  //     navigate("/");
+  //   }
+  // }, [navigate, user]);
 
   const shakeAnimation = keyframes`
     0%, 100% { transform: translateX(0); }
@@ -95,7 +95,7 @@ export default function Home() {
             const isMultipleChoiceField = multiSelectFields.includes(s.selectedOption2);
             const isRangeSelectField = rangeSelectFields.includes(s.selectedOption2);
             const isRangeSelectPlusEnterFields = rangeSelectPlusEnterFields.includes(s.selectedOption2);
-
+            const isYesNoField = ["Yes", "No"].includes(s.selectedOption2);
             let option3Value;
 
             if (isDateField) {
@@ -115,6 +115,8 @@ export default function Home() {
               option3Value = `${s.selectedOption3.operator} ${s.selectedOption3.name || s.selectedOption3.id}`;
             } else if (isRangeSelectPlusEnterFields) {
               option3Value = `${s.selectedOption3.operator} ${s.selectedOption3.value}`;
+            } else if (isYesNoField) {
+              option3Value = s.selectedOption2;
             } else if (typeof s.selectedOption3 === "object") {
               if (s.selectedOption3.operator && s.selectedOption3.value !== undefined) {
                 option3Value = `${s.selectedOption3.operator} ${s.selectedOption3.value}`;
@@ -127,7 +129,15 @@ export default function Home() {
               option3Value = s.selectedOption3;
             }
             let nodeValue = null;
-            if (patientNode.includes(s.selectedOption2)) {
+
+            // For Survey and Screening, selectedOption4 must be an array of nodes.
+            if (s.selectedOption1.msg === "Survey" && (s.selectedOption2 === "Yes" || s.selectedOption2 === "No")) {
+              nodeValue = ["patients1", "Form_1"];
+            } else if (s.selectedOption1.msg === "Screening" && (s.selectedOption2 === "Yes" || s.selectedOption2 === "No")) {
+              nodeValue = ["manual_vital_data", "Form_3"];
+            } else if (s.selectedOption1.msg === "TCC" && (s.selectedOption2 === "Yes" || s.selectedOption2 === "No")) {
+              nodeValue = ["tcc_form"];
+            } else if (patientNode.includes(s.selectedOption2)) {
               nodeValue = "patients1";
             } else if (form_1Node.includes(s.selectedOption2) && s.selectedOption1.msg === "Survey") {
               nodeValue = "Form_1";

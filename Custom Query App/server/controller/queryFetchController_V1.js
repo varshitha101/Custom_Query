@@ -20,15 +20,22 @@ export default async function queryFetch_V1(req, res) {
   const reqStartTime = Date.now();
   try {
     const { expression, expressionString } = req.body;
-    console.log("Expression:", expression);
-    console.log("Expression String:", util.inspect(expression, { depth: null, maxArrayLength: null }));
+    console.log("Expression String:", expressionString);
+    console.log("Expression :", util.inspect(expression, { depth: null, maxArrayLength: null }));
 
     const dbRef = ref(database);
 
     res.setHeader("Content-Type", "application/json");
     res.setHeader("Transfer-Encoding", "chunked");
 
-    const requiredNodes = Array.from(new Set(expression.filter((item) => item.type === "selector" && item.value && item.value.selectedOption4).map((item) => item.value.selectedOption4)));
+    const requiredNodes = Array.from(
+      new Set(
+        expression
+          .filter((item) => item.type === "selector" && item.value && item.value.selectedOption4)
+          .flatMap((item) => (Array.isArray(item.value.selectedOption4) ? item.value.selectedOption4 : [item.value.selectedOption4]))
+          .filter(Boolean)
+      )
+    );
 
     if (expression.some((item) => item.type === "selector" && item.value?.selectedOption4 === "general") && !requiredNodes.includes("Form_1")) {
       requiredNodes.push("Form_1");
@@ -37,6 +44,7 @@ export default async function queryFetch_V1(req, res) {
     console.log("Required Nodes:", requiredNodes);
     const snapshots = {};
 
+    // Fetch all required nodes in parallel
     await Promise.all(
       requiredNodes.map(async (node) => {
         snapshots[node] = await get(child(dbRef, `${node}/`));
@@ -83,6 +91,7 @@ async function validateData(data, expression, query, res) {
 
   const priorityOrder = query.includes("OR") ? ["patients1", "Form_1", "Form_3", "manual_vital_data", "tcc_form"] : ["tcc_form", "manual_vital_data", "Form_3", "Form_1", "patients1"];
 
+  // Only one of date range or phase date can be present between selectors
   let isDateRangePresent = false;
   let isPhaseDatePresent = false;
   let selectedDates = { SDate: null, LDate: null };
@@ -115,7 +124,7 @@ async function validateData(data, expression, query, res) {
       }
     }
   });
-
+  // Only one of date range or phase date can be present
   if (isDateRangePresent && isPhaseDatePresent) {
     return res.status(400).json({ message: "Cannot have both Date and Phase selectors in the same query" });
   }
@@ -126,6 +135,8 @@ async function validateData(data, expression, query, res) {
 
   for (const key of priorityOrder) {
     if (data[key]) {
+      console.log("priorityOrder Processing data for key:", key);
+
       patients = data[key];
       Object.values(patients).forEach((panchayathData) => {
         if (typeof panchayathData !== "object") return;
@@ -145,7 +156,7 @@ async function validateData(data, expression, query, res) {
 
   console.log("Total UUIDs to process: ", allUUIDsCount);
 
-  const BATCH_SIZE = 100;
+  const BATCH_SIZE = 500;
   console.log("Batch size set to:", BATCH_SIZE);
 
   const allUUIDEntries = [];
@@ -469,15 +480,16 @@ async function validateData(data, expression, query, res) {
             const { selectedOption2, selectedOption3, selectedOption4 } = value;
             // console.log(selectedOption2, selectedOption3, selectedOption4);
             // console.log("Evaluating for label:", isPhaseDatePresent, isPhase1, Form1_ph1MaxTimestamp <= stTime, Form1_ph1MaxTimestamp, Form1_ph1MaxTimestamp !== null);
+
             if (selectedOption4 === "patients1") {
               conditionMap[label] = option3Validator(selectedOption2, selectedOption3, patData, selectedOption4);
-            } else if (selectedOption4 === "Form_1" && form1Data !== undefined && Object.keys(form1Data).length > 0) {
+            } else if (selectedOption4 === "Form_1") {
               conditionMap[label] = option3Validator(selectedOption2, selectedOption3, form1Data, selectedOption4);
-            } else if (selectedOption4 === "manual_vital_data" && MVD !== undefined && Object.keys(MVD).length > 0) {
+            } else if (selectedOption4 === "manual_vital_data") {
               conditionMap[label] = option3Validator(selectedOption2, selectedOption3, MVD, selectedOption4);
-            } else if (selectedOption4 === "Form_3" && form3Data !== undefined && Object.keys(form3Data).length > 0) {
+            } else if (selectedOption4 === "Form_3") {
               conditionMap[label] = option3Validator(selectedOption2, selectedOption3, form3Data, selectedOption4);
-            } else if (selectedOption4 === "tcc_form" && tccFormData !== undefined && Object.keys(tccFormData).length > 0) {
+            } else if (selectedOption4 === "tcc_form") {
               conditionMap[label] = option3Validator(selectedOption2, selectedOption3, tccFormData, selectedOption4);
             } else if (selectedOption4 === "general" && selectedOption2 === "Panchayath" && selectedOption3 === panchayathId) {
               conditionMap[label] = true;
@@ -489,6 +501,18 @@ async function validateData(data, expression, query, res) {
               conditionMap[label] = true;
             } else if (selectedOption4 === "general" && selectedOption2 === "Phase 2" && isPhaseDatePresent && isPhase2 && Form1_ph2MaxTimestamp >= stTime && Form1_ph2MaxTimestamp !== null) {
               conditionMap[label] = true;
+            } else if (Array.isArray(selectedOption4) && selectedOption4.includes("patients1") && selectedOption4.includes("Form_1")) {
+              const result1 = option3Validator(selectedOption2, selectedOption3, patData, "patients1");
+              const result2 = option3Validator(selectedOption2, selectedOption3, form1Data, "Form_1");
+              // console.log("Combined Result for patients1 and Form_1:", result1, result2);
+              conditionMap[label] = result1 && result2;
+            } else if (Array.isArray(selectedOption4) && selectedOption4.includes("manual_vital_data") && selectedOption4.includes("Form_3")) {
+              const result1 = option3Validator(selectedOption2, selectedOption3, MVD, "manual_vital_data");
+              const result2 = option3Validator(selectedOption2, selectedOption3, form3Data, "Form_3");
+              // console.log("Combined Result for manual_vital_data and Form_3:", result1, result2);
+              conditionMap[label] = result1 && result2;
+            } else if (Array.isArray(selectedOption4) && selectedOption4.includes("tcc_form")) {
+              conditionMap[label] = option3Validator(selectedOption2, selectedOption3, tccFormData, "tcc_form");
             } else {
               conditionMap[label] = false;
             }
@@ -502,7 +526,7 @@ async function validateData(data, expression, query, res) {
 
         try {
           processedQuery = processedQuery.replace(/AND/g, "&&").replace(/OR/g, "||");
-          console.log("processedQuery", processedQuery);
+          if (villageId === "22241") console.log(`Evaluating for UUID: ${uuid} of villageId: ${villageId} with query: ${processedQuery}`);
 
           if (eval(processedQuery)) {
             processedCount++;
@@ -518,13 +542,21 @@ async function validateData(data, expression, query, res) {
               tcc_form: tccFormData,
             };
 
-            let requiredNodes = Array.from(new Set(expression.filter((item) => item.type === "selector" && item.value && item.value.selectedOption4).map((item) => item.value.selectedOption4)));
+            let requiredNodes = Array.from(
+              new Set(
+                expression
+                  .filter((item) => item.type === "selector" && item.value && item.value.selectedOption4)
+                  .flatMap((item) => (Array.isArray(item.value.selectedOption4) ? item.value.selectedOption4 : [item.value.selectedOption4]))
+                  .filter(Boolean)
+              )
+            );
 
             if (expression.some((item) => item.type === "selector" && item.value?.selectedOption4 === "general")) {
               if (!requiredNodes.includes("Form_1")) {
                 requiredNodes.push("Form_1");
               }
             }
+            // console.log("Final Required Nodes for fetching additional data:", requiredNodes);
             const formNode = formNodes.filter((node) => !requiredNodes.includes(node));
 
             // console.log("Fetching additional nodes for UUID:", uuid, "Nodes:", formNode);

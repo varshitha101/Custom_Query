@@ -110,6 +110,7 @@ export default function OptionSelector({ id, data, onDelete, errorSelectors, sel
       // For "Phase 1" / "Phase 2" we must set a non-null selectedOption3
       // so the selector is considered complete (Home.jsx only needs a non-null value here).
       const isPhaseDate = ["Phase 1", "Phase 2"].includes(newSelectedOption2);
+      const isYesNo = ["Yes", "No"].includes(newSelectedOption2);
 
       setSelectors((prev) =>
         prev.map((s) =>
@@ -117,7 +118,7 @@ export default function OptionSelector({ id, data, onDelete, errorSelectors, sel
             ? {
                 ...s,
                 selectedOption2: newSelectedOption2,
-                selectedOption3: isPhaseDate ? { value: newSelectedOption2 } : null,
+                selectedOption3: isPhaseDate || isYesNo ? { value: newSelectedOption2 } : null,
               }
             : s
         )
@@ -159,7 +160,6 @@ export default function OptionSelector({ id, data, onDelete, errorSelectors, sel
               : s
           )
         );
-
         return;
       }
 
@@ -285,6 +285,9 @@ export default function OptionSelector({ id, data, onDelete, errorSelectors, sel
         <DateSelector value={selector?.selectedOption3} onChange={handleSelectedOption3Change} />
       ) : ["Phase 1", "Phase 2"].includes(selector?.selectedOption2) ? (
         <PhaseDateSelector option={selector?.selectedOption2} />
+      ) : ["Yes", "No"].includes(selector?.selectedOption2) ? (
+        // If the second option is "Yes" or "No", render nothing for the third selector
+        <></>
       ) : rangeSelectFields.includes(selector?.selectedOption2) ? (
         // If the second option is a range select field, render RangeSelector
         <RangeSelector

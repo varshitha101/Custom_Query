@@ -686,7 +686,14 @@ export default async function queryFetch_V2(req, res) {
     const allNodes = ["patients1", "Form_1", "Form_3", "tcc_form", "manual_vital_data"];
 
     // Collect required nodes from expression
-    const requiredNodes = Array.from(new Set(expression.filter((item) => item.type === "selector" && item.value && item.value.selectedOption4).map((item) => item.value.selectedOption4)));
+    const requiredNodes = Array.from(
+      new Set(
+        expression
+          .filter((item) => item.type === "selector" && item.value && item.value.selectedOption4)
+          .flatMap((item) => (Array.isArray(item.value.selectedOption4) ? item.value.selectedOption4 : [item.value.selectedOption4]))
+          .filter(Boolean)
+      )
+    );
     // Ensure Form_1 is included if "general" selector is used
     if (expression.some((item) => item.type === "selector" && item.value?.selectedOption4 === "general") && !requiredNodes.includes("Form_1")) {
       requiredNodes.push("Form_1");
