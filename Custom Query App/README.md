@@ -78,3 +78,8 @@ This will:
 
   - Added options to select Phase 1 and Phase 2.
   - Allow multiple dates to be selected.
+
+- **Version 0.14**:
+
+  - Added Yes/No for screening,survey and tcc
+  - Added logic to handle Yes/No for screening,survey and tcc

@@ -59,7 +59,28 @@ export default async function queryFetch_V1(req, res) {
       }
     }
 
-    await validateData(patientData, expression, expressionString, res);
+    // If the query is structured as top-level parenthesis groups joined by AND,
+    // evaluate each group independently and intersect results.
+    // This prevents Phase-1/Phase-2 data from being combined before evaluation.
+    const grouped = splitTopLevelParenGroups(expression);
+    if (grouped.groups.length >= 2 && grouped.operators.length === grouped.groups.length - 1 && grouped.operators.every((op) => op === "AND")) {
+      res.write(JSON.stringify({ mode: "grouped-intersection", groups: grouped.groups.length }) + "\n");
+
+      const groupResults = [];
+      for (let i = 0; i < grouped.groups.length; i++) {
+        const groupExpression = grouped.groups[i];
+        const groupQuery = buildQueryStringFromExpressionTokens(groupExpression);
+        res.write(JSON.stringify({ group: i + 1, query: groupQuery }) + "\n");
+        // Collect results without writing final data for each group.
+        const result = await validateData(patientData, groupExpression, groupQuery, res, { writeFinalData: false, groupIndex: i + 1 });
+        groupResults.push(result);
+      }
+
+      const intersected = intersectMatchedResults(groupResults);
+      res.write(JSON.stringify({ data: intersected }) + "\n");
+    } else {
+      await validateData(patientData, expression, expressionString, res);
+    }
   } catch (error) {
     console.error("Error in patientData function:", error);
 
@@ -74,6 +95,110 @@ export default async function queryFetch_V1(req, res) {
   }
 }
 
+function splitTopLevelParenGroups(expression) {
+  const groups = [];
+  const operators = [];
+
+  let depth = 0;
+  let current = null;
+  let expectingGroupOrOperator = "group";
+
+  for (const token of expression) {
+    if (token?.type === "choice" && token?.value === "(") {
+      depth++;
+      if (depth === 1) {
+        current = [];
+        expectingGroupOrOperator = "group";
+        continue;
+      }
+    }
+
+    if (token?.type === "choice" && token?.value === ")") {
+      if (depth > 0) depth--;
+      if (depth === 0 && current) {
+        groups.push(current);
+        current = null;
+        expectingGroupOrOperator = "operator";
+        continue;
+      }
+    }
+
+    if (depth >= 1) {
+      // Inside a top-level group (excluding the wrapping parens)
+      if (current) current.push(token);
+      continue;
+    }
+
+    // Between top-level groups at depth 0
+    if (expectingGroupOrOperator === "operator" && token?.type === "choice" && (token?.value === "AND" || token?.value === "OR")) {
+      operators.push(token.value);
+      expectingGroupOrOperator = "group";
+    }
+  }
+
+  return { groups, operators };
+}
+
+function buildQueryStringFromExpressionTokens(expressionTokens) {
+  // Build a query string like: Q1 AND Q2 AND ( Q3 OR Q4 )
+  // based on the expression token list.
+  return expressionTokens
+    .map((t) => {
+      if (t?.type === "selector") return t.label;
+      if (t?.type === "choice") return t.value;
+      return "";
+    })
+    .filter(Boolean)
+    .join(" ");
+}
+
+function intersectMatchedResults(groupResults) {
+  if (!Array.isArray(groupResults) || groupResults.length === 0) return [];
+  if (groupResults.length === 1) return groupResults[0] ?? [];
+
+  const maps = groupResults.map((arr) => {
+    const map = new Map();
+    for (const item of arr ?? []) {
+      const key = item?._key;
+      if (key) map.set(key, item);
+    }
+    return map;
+  });
+
+  // Intersect keys across all groups.
+  const [first, ...rest] = maps;
+  const intersectionKeys = [];
+  for (const key of first.keys()) {
+    if (rest.every((m) => m.has(key))) intersectionKeys.push(key);
+  }
+
+  // Merge objects from each group (combine node data).
+  const merged = [];
+  for (const key of intersectionKeys) {
+    let combined = { ...first.get(key) };
+    for (const m of rest) {
+      combined = mergeMatchedObjects(combined, m.get(key));
+    }
+    merged.push(combined);
+  }
+  return merged;
+}
+
+function mergeMatchedObjects(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+
+  const merged = { ...a, ...b };
+  // Merge known node objects more safely.
+  const nodeKeys = ["patients1", "Form_1", "manual_vital_data", "Form_3", "tcc_form"];
+  for (const k of nodeKeys) {
+    if (a[k] && b[k] && typeof a[k] === "object" && typeof b[k] === "object") {
+      merged[k] = { ...a[k], ...b[k] };
+    }
+  }
+  return merged;
+}
+
 /**
  * Validates the provided data against the expression and query.
  * It processes the data in batches to optimize performance and returns matched UUIDs.
@@ -84,13 +209,32 @@ export default async function queryFetch_V1(req, res) {
  * @returns {Array} - An array of matched UUIDs based on the expression and query.
  * @throws {Error} - Throws an error if the data is invalid or if there are issues during processing.
  */
-async function validateData(data, expression, query, res) {
+async function validateData(data, expression, query, res, options = {}) {
+  const { writeFinalData = true, groupIndex = null } = options;
+
   if (!data || typeof data !== "object" || Object.keys(data).length === 0) {
     return res.status(400).json({ message: "No data found" });
   }
 
-  const priorityOrder = query.includes("OR") ? ["patients1", "Form_1", "Form_3", "manual_vital_data", "tcc_form"] : ["tcc_form", "manual_vital_data", "Form_3", "Form_1", "patients1"];
+  let isTCCNo = expression.some((item) => item.type === "selector" && item.value?.selectedOption1 === "TCC" && item.value?.selectedOption2 === "No");
+  let isScreeningNo = expression.some((item) => item.type === "selector" && item.value?.selectedOption1 === "Screening" && item.value?.selectedOption2 === "No");
+  let isSurveyNo = expression.some((item) => item.type === "selector" && item.value?.selectedOption1 === "Survey" && item.value?.selectedOption2 === "No");
 
+  let priorityOrder = null;
+
+  if (query.includes("AND")) {
+    if (isTCCNo) {
+      priorityOrder = ["manual_vital_data", "Form_3", "Form_1", "patients1", "tcc_form"];
+    } else if (isScreeningNo) {
+      priorityOrder = ["Form_1", "patients1", "tcc_form", "manual_vital_data", "Form_3"];
+    } else if (isSurveyNo) {
+      priorityOrder = ["patients1"];
+    } else {
+      priorityOrder = ["tcc_form", "manual_vital_data", "Form_3", "Form_1", "patients1"];
+    }
+  } else {
+    priorityOrder = ["patients1", "Form_1", "Form_3", "manual_vital_data", "tcc_form"];
+  }
   // Only one of date range or phase date can be present between selectors
   let isDateRangePresent = false;
   let isPhaseDatePresent = false;
@@ -105,6 +249,13 @@ async function validateData(data, expression, query, res) {
 
     if (option2 === "Date") {
       isDateRangePresent = true;
+      // Capture the selected date range for later evaluation (general Date selector).
+      if (item.value?.selectedOption3?.SDate != null && item.value?.selectedOption3?.LDate != null) {
+        selectedDates = {
+          SDate: Number(item.value.selectedOption3.SDate),
+          LDate: Number(item.value.selectedOption3.LDate),
+        };
+      }
       if (item.value?.selectedOption3?.SDate <= stTime && item.value?.selectedOption3?.LDate <= stTime) {
         isPhase1 = true;
       } else if (item.value?.selectedOption3?.SDate >= stTime && item.value?.selectedOption3?.LDate >= stTime) {
@@ -218,39 +369,51 @@ async function validateData(data, expression, query, res) {
           const form1CData = data["Form_1"][panchayathId]?.[villageId]?.[uuid] || {};
           if (form1CData) {
             if (isDatePresent) {
-              const timestampKeys = Object.keys(form1CData);
+              const timestampKeys = Object.keys(form1CData)
+                .map((t) => Number(t))
+                .filter((t) => Number.isFinite(t));
               if (isDateRangePresent) {
                 if (isPhase1) {
                   const filteredPhase1Timestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
-                  Form1_ph1MaxTimestamp = Math.max(...filteredPhase1Timestamps);
-                  if (Form1_ph1MaxTimestamp !== -Infinity) {
-                    form1Data[Form1_ph1MaxTimestamp] = form1CData[Form1_ph1MaxTimestamp];
+                  if (filteredPhase1Timestamps.length > 0) {
+                    Form1_ph1MaxTimestamp = Math.max(...filteredPhase1Timestamps);
+                    form1Data[Form1_ph1MaxTimestamp] = form1CData[String(Form1_ph1MaxTimestamp)];
+                  } else {
+                    Form1_ph1MaxTimestamp = null;
                   }
                 } else if (isPhase2) {
                   const filteredPhase2Timestamps = timestampKeys.filter((timestamp) => timestamp >= stTime);
-                  Form1_ph2MaxTimestamp = Math.max(...filteredPhase2Timestamps);
-                  if (Form1_ph2MaxTimestamp !== -Infinity) {
-                    form1Data[Form1_ph2MaxTimestamp] = form1CData[Form1_ph2MaxTimestamp];
+                  if (filteredPhase2Timestamps.length > 0) {
+                    Form1_ph2MaxTimestamp = Math.max(...filteredPhase2Timestamps);
+                    form1Data[Form1_ph2MaxTimestamp] = form1CData[String(Form1_ph2MaxTimestamp)];
+                  } else {
+                    Form1_ph2MaxTimestamp = null;
                   }
                 } else if (isBetween) {
-                  Form1_maxTimestamp = Math.max(...timestampKeys);
-                  if (Form1_maxTimestamp !== -Infinity) {
-                    form1Data[Form1_maxTimestamp] = form1CData[Form1_maxTimestamp];
+                  if (timestampKeys.length > 0) {
+                    Form1_maxTimestamp = Math.max(...timestampKeys);
+                    form1Data[Form1_maxTimestamp] = form1CData[String(Form1_maxTimestamp)];
+                  } else {
+                    Form1_maxTimestamp = null;
                   }
                 }
               } else if (isPhaseDatePresent) {
                 if (isPhase1) {
                   const filteredPhase1Timestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
-                  Form1_ph1MaxTimestamp = Math.max(...filteredPhase1Timestamps);
-                  if (Form1_ph1MaxTimestamp !== -Infinity) {
-                    form1Data[Form1_ph1MaxTimestamp] = form1CData[Form1_ph1MaxTimestamp];
+                  if (filteredPhase1Timestamps.length > 0) {
+                    Form1_ph1MaxTimestamp = Math.max(...filteredPhase1Timestamps);
+                    form1Data[Form1_ph1MaxTimestamp] = form1CData[String(Form1_ph1MaxTimestamp)];
+                  } else {
+                    Form1_ph1MaxTimestamp = null;
                   }
                 }
                 if (isPhase2) {
                   const filteredPhase2Timestamps = timestampKeys.filter((timestamp) => timestamp >= stTime);
-                  Form1_ph2MaxTimestamp = Math.max(...filteredPhase2Timestamps);
-                  if (Form1_ph2MaxTimestamp !== -Infinity) {
-                    form1Data[Form1_ph2MaxTimestamp] = form1CData[Form1_ph2MaxTimestamp];
+                  if (filteredPhase2Timestamps.length > 0) {
+                    Form1_ph2MaxTimestamp = Math.max(...filteredPhase2Timestamps);
+                    form1Data[Form1_ph2MaxTimestamp] = form1CData[String(Form1_ph2MaxTimestamp)];
+                  } else {
+                    Form1_ph2MaxTimestamp = null;
                   }
                 }
               }
@@ -495,11 +658,20 @@ async function validateData(data, expression, query, res) {
               conditionMap[label] = true;
             } else if (selectedOption4 === "general" && selectedOption2 === "Village" && selectedOption3 === villageId) {
               conditionMap[label] = true;
-            } else if (selectedOption4 === "general" && isDatePresent && selectedDates.SDate <= Form1_maxTimestamp && Form1_maxTimestamp <= selectedDates.LDate && selectedOption2 === "Date") {
+            } else if (
+              selectedOption4 === "general" &&
+              selectedOption2 === "Date" &&
+              isDatePresent &&
+              selectedDates.SDate != null &&
+              selectedDates.LDate != null &&
+              Form1_maxTimestamp != null &&
+              selectedDates.SDate <= Form1_maxTimestamp &&
+              Form1_maxTimestamp <= selectedDates.LDate
+            ) {
               conditionMap[label] = true;
-            } else if (selectedOption4 === "general" && selectedOption2 === "Phase 1" && isPhaseDatePresent && isPhase1 && Form1_ph1MaxTimestamp <= stTime && Form1_ph1MaxTimestamp !== null) {
+            } else if (selectedOption4 === "general" && selectedOption2 === "Phase 1" && isPhaseDatePresent && isPhase1 && Form1_ph1MaxTimestamp != null && Form1_ph1MaxTimestamp <= stTime) {
               conditionMap[label] = true;
-            } else if (selectedOption4 === "general" && selectedOption2 === "Phase 2" && isPhaseDatePresent && isPhase2 && Form1_ph2MaxTimestamp >= stTime && Form1_ph2MaxTimestamp !== null) {
+            } else if (selectedOption4 === "general" && selectedOption2 === "Phase 2" && isPhaseDatePresent && isPhase2 && Form1_ph2MaxTimestamp != null && Form1_ph2MaxTimestamp >= stTime) {
               conditionMap[label] = true;
             } else if (Array.isArray(selectedOption4) && selectedOption4.includes("patients1") && selectedOption4.includes("Form_1")) {
               const result1 = option3Validator(selectedOption2, selectedOption3, patData, "patients1");
@@ -526,11 +698,11 @@ async function validateData(data, expression, query, res) {
 
         try {
           processedQuery = processedQuery.replace(/AND/g, "&&").replace(/OR/g, "||");
-          if (villageId === "22241") console.log(`Evaluating for UUID: ${uuid} of villageId: ${villageId} with query: ${processedQuery}`);
-
-          if (eval(processedQuery)) {
+          const evaluation = eval(processedQuery);
+          if (villageId === "22241") console.log(`Evaluating for UUID: ${uuid} of villageId: ${villageId} with query: ${processedQuery} Result: ${evaluation}`);
+          if (evaluation) {
             processedCount++;
-            res.write(JSON.stringify({ processed: processedCount }) + "\n");
+            res.write(JSON.stringify({ processed: processedCount, ...(groupIndex ? { group: groupIndex } : {}) }) + "\n");
             const dbRef = ref(database);
             const formNodes = ["patients1", "Form_1", "manual_vital_data", "Form_3", "tcc_form"];
 
@@ -655,7 +827,13 @@ async function validateData(data, expression, query, res) {
 
             await Promise.all(fetchPromises);
 
-            matchedUUIDs.push({ ...infoObject });
+            matchedUUIDs.push({
+              _key: `${panchayathId}/${villageId}/${uuid}`,
+              uuid,
+              panchayathId,
+              villageId,
+              ...infoObject,
+            });
           }
         } catch (error) {
           console.error(`Error evaluating expression for UUID ${uuid}:`, error);
@@ -665,6 +843,8 @@ async function validateData(data, expression, query, res) {
   }
 
   console.log("Matched UUIDs length: ", matchedUUIDs.length);
-  res.write(JSON.stringify({ data: matchedUUIDs }) + "\n");
+  if (writeFinalData) {
+    res.write(JSON.stringify({ data: matchedUUIDs }) + "\n");
+  }
   return matchedUUIDs;
 }
