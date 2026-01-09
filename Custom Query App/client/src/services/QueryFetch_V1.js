@@ -1132,6 +1132,7 @@ export default async function handleQueryFetch(expression, expressionString, set
                     Panchayath: row.patients1.pcht_n || "",
                     "Individual Unique ID ": row.patients1.pid || "",
                     Name: row.patients1.name || "",
+                    UUID: row.patients1.uid || "",
                     "ID Proof Type": mapping(row.patients1.idprftype) || "",
                     "ID Proof Number": row.patients1.idprfno || "",
                     "Number of family members": row.patients1.no_fm || "",

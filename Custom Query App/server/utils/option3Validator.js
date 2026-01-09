@@ -1,4 +1,5 @@
 import { patientNode, form_1Node, mvd, form3, Tcc } from "./option2MapDetails.js";
+
 /**
  *  Validates the field value against the expected value based on the source and field type.
  * @param {string} field
@@ -19,23 +20,12 @@ export default function option3Validator(field, expectedValue, dataInfo, source)
     } else {
       data = safeDataInfo;
     }
-    const hasAnyData = (value) => {
-      if (value === null || value === undefined) return false;
-      if (Array.isArray(value)) return value.length > 0;
-      if (typeof value === "object") return Object.keys(value).length > 0;
-      if (typeof value === "string") return value.trim().length > 0;
-      return true;
-    };
 
     // Presence checks used across all sources.
     // In this app, "Yes" means data exists, "No" means data should not be there.
 
     if (source === "patients1") {
-      if (field === "Yes") {
-        return hasAnyData(data);
-      } else if (field === "No") {
-        return !hasAnyData(data);
-      } else if (field === "Age") {
+      if (field === "Age") {
         const actualValue = data[patientNode[field]];
         if (actualValue !== undefined) {
           if (expectedValue.startsWith("< ")) {
@@ -307,11 +297,7 @@ export default function option3Validator(field, expectedValue, dataInfo, source)
         return false;
       }
     } else if (source === "Form_1") {
-      if (field === "Yes") {
-        return hasAnyData(data);
-      } else if (field === "No") {
-        return !hasAnyData(data);
-      } else if (field === "Have you heard about cancer ?") {
+      if (field === "Have you heard about cancer ?") {
         const actualValue = data[form_1Node[field]];
 
         if (expectedValue === "Yes") {
@@ -1302,11 +1288,7 @@ export default function option3Validator(field, expectedValue, dataInfo, source)
         return false;
       }
     } else if (source === "manual_vital_data") {
-      if (field === "Yes") {
-        return hasAnyData(data);
-      } else if (field === "No") {
-        return !hasAnyData(data);
-      } else if (field === "Heart Rate") {
+      if (field === "Heart Rate") {
         const actualValue = data[mvd[field]];
 
         if (actualValue !== undefined) {
@@ -1521,11 +1503,7 @@ export default function option3Validator(field, expectedValue, dataInfo, source)
         return false;
       }
     } else if (source === "Form_3") {
-      if (field === "Yes") {
-        return hasAnyData(data);
-      } else if (field === "No") {
-        return !hasAnyData(data);
-      } else if (field === "Screening done for") {
+      if (field === "Screening done for") {
         const scrData = data[form3[field]];
         if (!scrData) return false;
         const labelToKey = {
@@ -2315,11 +2293,7 @@ export default function option3Validator(field, expectedValue, dataInfo, source)
         return false;
       }
     } else if (source === "tcc_form") {
-      if (field === "Yes") {
-        return hasAnyData(data);
-      } else if (field === "No") {
-        return !hasAnyData(data);
-      } else if (field === "Amount spent on tobacco per day") {
+      if (field === "Amount spent on tobacco per day") {
         const actualValue = data[Tcc[field]];
 
         if (actualValue !== undefined) {
@@ -3611,3 +3585,11 @@ export default function option3Validator(field, expectedValue, dataInfo, source)
     return false;
   }
 }
+
+const hasAnyData = (value) => {
+  if (value === null || value === undefined) return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") return Object.keys(value).length > 0;
+  if (typeof value === "string") return value.trim().length > 0;
+  return true;
+};

@@ -13,7 +13,6 @@ import SelectorOption1 from "./ui/SelectorOption1";
 import SelectorOption2 from "./ui/SelectorOption2";
 import SingleOptionSelect from "./ui/SingleOptionSelect";
 import DateSelector from "./ui/DateSelector";
-import PhaseDateSelector from "./ui/PhaseDateSelector";
 import RangeSelector from "./ui/RangeSelector";
 import RangeInputSelector from "./ui/RangeInputSelector";
 import MultiSelect from "./ui/MultiSelect";
@@ -27,15 +26,13 @@ export default function OptionSelector({ id, data, onDelete, errorSelectors, sel
   const [errorOption2, seterrorOption2] = useState(false);
   const [errorOption3, seterrorOption3] = useState(false);
   const selectedOptions2 = selectors.map((s) => s.selectedOption2);
-  const disableDate = selectedOptions2.includes("Phase 1") || selectedOptions2.includes("Phase 2");
+  const disableDate = selectedOptions2.includes("Coverage Status");
   const disablePhase = selectedOptions2.includes("Date");
 
   const disabledOptions = [];
   if (disableDate) disabledOptions.push("Date");
-  if (disablePhase) {
-    disabledOptions.push("Phase 1");
-    disabledOptions.push("Phase 2");
-  }
+  if (disablePhase) disabledOptions.push("Coverage Status");
+
   // Reset error states when selector changes
   useEffect(() => {
     if (selector?.selectedOption1 !== null) {
@@ -107,18 +104,13 @@ export default function OptionSelector({ id, data, onDelete, errorSelectors, sel
       setInputValue3("");
       setExpression([]);
 
-      // For "Phase 1" / "Phase 2" we must set a non-null selectedOption3
-      // so the selector is considered complete (Home.jsx only needs a non-null value here).
-      const isPhaseDate = ["Phase 1", "Phase 2"].includes(newSelectedOption2);
-      const isYesNo = ["Yes", "No"].includes(newSelectedOption2);
-
       setSelectors((prev) =>
         prev.map((s) =>
           s.id === id
             ? {
                 ...s,
                 selectedOption2: newSelectedOption2,
-                selectedOption3: isPhaseDate || isYesNo ? { value: newSelectedOption2 } : null,
+                selectedOption3: null,
               }
             : s
         )
@@ -283,11 +275,6 @@ export default function OptionSelector({ id, data, onDelete, errorSelectors, sel
       {selector?.selectedOption2 === "Date" ? (
         // If the second option is "Date", render DateSelector
         <DateSelector value={selector?.selectedOption3} onChange={handleSelectedOption3Change} />
-      ) : ["Phase 1", "Phase 2"].includes(selector?.selectedOption2) ? (
-        <PhaseDateSelector option={selector?.selectedOption2} />
-      ) : ["Yes", "No"].includes(selector?.selectedOption2) ? (
-        // If the second option is "Yes" or "No", render nothing for the third selector
-        <></>
       ) : rangeSelectFields.includes(selector?.selectedOption2) ? (
         // If the second option is a range select field, render RangeSelector
         <RangeSelector

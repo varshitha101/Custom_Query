@@ -13,8 +13,7 @@ const data = [
     id: 1,
     msg: "Survey",
     fields: [
-      "Yes",
-      "No",
+      "Coverage Status",
       "ID Proof Type",
       "Number of family members",
       "Status",
@@ -85,6 +84,7 @@ const data = [
       "K/C/O Cancer",
     ],
     options: {
+      "Coverage Status": ["Covered in Phase 1", "Not Covered in Phase 1", "Covered in Phase 2", "Not Covered in Phase 2"],
       "ID Proof Type": ["Aadhar", "Ration Card", "Voters ID", "Not available"],
       "Number of family members": "",
       Status: ["In Person", "Absent"],
@@ -196,8 +196,7 @@ const data = [
     id: 2,
     msg: "Screening",
     fields: [
-      "Yes",
-      "No",
+      "Coverage Status",
       "Heart Rate",
       "SPO2",
       "BP/SBP",
@@ -248,6 +247,7 @@ const data = [
       "Recommendation",
     ],
     options: {
+      "Coverage Status": ["Covered in Phase 1", "Not Covered in Phase 1", "Covered in Phase 2", "Not Covered in Phase 2"],
       "Heart Rate": numberStrings(40, 200),
       SPO2: numberStrings(40, 100),
       "BP/SBP": "",
@@ -438,8 +438,7 @@ const data = [
     id: 3,
     msg: "TCC",
     fields: [
-      "Yes",
-      "No",
+      "Coverage Status",
       "Amount spent on tobacco per day",
       "Types of tobacco consumption",
       "Frequency of use / day [Smoked tobacco - beedi, cigarettes]",
@@ -517,6 +516,7 @@ const data = [
       "Counselling Techniques",
     ],
     options: {
+      "Coverage Status": ["Covered in Phase 1", "Not Covered in Phase 1", "Covered in Phase 2", "Not Covered in Phase 2"],
       "Amount spent on tobacco per day": "",
       "Types of tobacco consumption": [
         "Smoked tobacco - beedi, cigarettes",
@@ -630,7 +630,7 @@ const data = [
   {
     id: 4,
     msg: "General",
-    fields: ["Village", "Panchayath", "Date", "Phase 1", "Phase 2"],
+    fields: ["Village", "Panchayath", "Date"],
     options: {
       Panchayath: [
         { name: "Anoor", id: "01" },

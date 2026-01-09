@@ -21,6 +21,10 @@ export default async function queryFetch_V1(req, res) {
   try {
     const { expression, expressionString } = req.body;
     console.log("Expression String:", expressionString);
+    if (typeof expressionString === "string" && /[\r\n]/.test(expressionString)) {
+      console.log("[QueryFetch_V1] Query string contains line break(s). This can break parsing/eval.");
+      console.log("[QueryFetch_V1] Raw Expression String (JSON):", JSON.stringify(expressionString));
+    }
     console.log("Expression :", util.inspect(expression, { depth: null, maxArrayLength: null }));
 
     const dbRef = ref(database);
@@ -28,6 +32,7 @@ export default async function queryFetch_V1(req, res) {
     res.setHeader("Content-Type", "application/json");
     res.setHeader("Transfer-Encoding", "chunked");
 
+    // get all required nodes from expression
     const requiredNodes = Array.from(
       new Set(
         expression
@@ -37,7 +42,8 @@ export default async function queryFetch_V1(req, res) {
       )
     );
 
-    if (expression.some((item) => item.type === "selector" && item.value?.selectedOption4 === "general") && !requiredNodes.includes("Form_1")) {
+    // Ensure Form_1 is included if general Date or Coverage Status is used
+    if (expression.some((item) => item.type === "selector" && (item.value?.selectedOption4 === "general" || item.value?.selectedOption2 === "Coverage Status")) && !requiredNodes.includes("Form_1")) {
       requiredNodes.push("Form_1");
     }
 
@@ -63,13 +69,19 @@ export default async function queryFetch_V1(req, res) {
     // evaluate each group independently and intersect results.
     // This prevents Phase-1/Phase-2 data from being combined before evaluation.
     const grouped = splitTopLevelParenGroups(expression);
+    if (Array.isArray(grouped.issues) && grouped.issues.length > 0) {
+      console.log("[QueryFetch_V1] Query token structure issues:", grouped.issues);
+    }
     if (grouped.groups.length >= 2 && grouped.operators.length === grouped.groups.length - 1 && grouped.operators.every((op) => op === "AND")) {
+      console.log("[QueryFetch_V1] Splitting query into top-level parenthesis groups (AND intersection mode)");
+      console.log("[QueryFetch_V1] Operators between groups:", grouped.operators);
       res.write(JSON.stringify({ mode: "grouped-intersection", groups: grouped.groups.length }) + "\n");
 
       const groupResults = [];
       for (let i = 0; i < grouped.groups.length; i++) {
         const groupExpression = grouped.groups[i];
         const groupQuery = buildQueryStringFromExpressionTokens(groupExpression);
+        console.log(`[QueryFetch_V1] Group ${i + 1} query (no outer parens):`, groupQuery);
         res.write(JSON.stringify({ group: i + 1, query: groupQuery }) + "\n");
         // Collect results without writing final data for each group.
         const result = await validateData(patientData, groupExpression, groupQuery, res, { writeFinalData: false, groupIndex: i + 1 });
@@ -83,7 +95,6 @@ export default async function queryFetch_V1(req, res) {
     }
   } catch (error) {
     console.error("Error in patientData function:", error);
-
     res.status(500).json({ error: "Internal Server Error", message: error.message });
   } finally {
     const reqEndTime = Date.now();
@@ -95,9 +106,15 @@ export default async function queryFetch_V1(req, res) {
   }
 }
 
+/**
+ * Splits the expression tokens into top-level parenthesis groups and operators.
+ * @param {*} expression
+ * @returns { groups: Array, operators: Array, issues: Array }
+ */
 function splitTopLevelParenGroups(expression) {
   const groups = [];
   const operators = [];
+  const issues = [];
 
   let depth = 0;
   let current = null;
@@ -115,6 +132,7 @@ function splitTopLevelParenGroups(expression) {
 
     if (token?.type === "choice" && token?.value === ")") {
       if (depth > 0) depth--;
+      else issues.push("unmatched closing parenthesis in tokens");
       if (depth === 0 && current) {
         groups.push(current);
         current = null;
@@ -136,9 +154,17 @@ function splitTopLevelParenGroups(expression) {
     }
   }
 
-  return { groups, operators };
+  if (depth !== 0) issues.push("unbalanced parentheses in tokens");
+  if (current) issues.push("unterminated top-level group in tokens");
+
+  return { groups, operators, issues };
 }
 
+/**
+ * Builds a query string from the provided expression tokens.
+ * @param {*} expressionTokens
+ * @returns {string} - The constructed query string.
+ */
 function buildQueryStringFromExpressionTokens(expressionTokens) {
   // Build a query string like: Q1 AND Q2 AND ( Q3 OR Q4 )
   // based on the expression token list.
@@ -152,6 +178,67 @@ function buildQueryStringFromExpressionTokens(expressionTokens) {
     .join(" ");
 }
 
+/**
+ * Finds potential issues in the query string that could cause evaluation errors.
+ * @param {*} query
+ * @param {*} conditionMap
+ * @returns   {Array} - An array of issue descriptions found in the query.
+ */
+function findQueryBreakIssues(query, conditionMap) {
+  const issues = [];
+  const q = typeof query === "string" ? query : "";
+
+  if (/[\r\n]/.test(q)) {
+    issues.push("contains line breaks");
+  }
+
+  // Parentheses balance check
+  let balance = 0;
+  for (const ch of q) {
+    if (ch === "(") balance++;
+    else if (ch === ")") balance--;
+    if (balance < 0) break;
+  }
+  if (balance !== 0) {
+    issues.push("unbalanced parentheses");
+  }
+
+  if (/\bundefined\b|\bNaN\b|\bnull\b/.test(q)) {
+    issues.push("contains undefined/null/NaN");
+  }
+
+  // Detect common operator problems before AND/OR conversion and after.
+  if (/(&&|\|\|)\s*(&&|\|\|)/.test(q)) {
+    issues.push("consecutive boolean operators");
+  }
+  if (/^\s*(&&|\|\|)\b|\b(&&|\|\|)\s*$/.test(q)) {
+    issues.push("starts/ends with boolean operator");
+  }
+
+  // If any selector label remains unreplaced, eval will usually throw.
+  if (conditionMap && typeof conditionMap === "object") {
+    for (const label of Object.keys(conditionMap)) {
+      if (!label) continue;
+      const re = new RegExp(`\\b${label}\\b`);
+      if (re.test(q)) {
+        issues.push(`unreplaced label: ${label}`);
+        break;
+      }
+    }
+  }
+
+  // Catch selector placeholders that weren't in conditionMap (e.g., malformed expressionString).
+  // This app uses labels like Q1, Q2, ...
+  if (/\bQ\d+\b/.test(q)) {
+    issues.push("contains unreplaced selector token(s) like Q1/Q2");
+  }
+
+  return issues;
+}
+
+/**
+ * Intersects matched results from multiple groups based on the _key property.
+ */
 function intersectMatchedResults(groupResults) {
   if (!Array.isArray(groupResults) || groupResults.length === 0) return [];
   if (groupResults.length === 1) return groupResults[0] ?? [];
@@ -184,6 +271,12 @@ function intersectMatchedResults(groupResults) {
   return merged;
 }
 
+/**
+ * Merges two matched objects, combining their properties.
+ * @param {*} a
+ * @param {*} b
+ * @returns {Object} - The merged object.
+ */
 function mergeMatchedObjects(a, b) {
   if (!a) return b;
   if (!b) return a;
@@ -200,6 +293,23 @@ function mergeMatchedObjects(a, b) {
 }
 
 /**
+ * This function chunks an array into smaller arrays of a specified size.
+ * It iterates through the original array and slices it into chunks of the specified size.
+ * @param {number} arr
+ * @param {number} size
+ * @returns {Array} - An array of arrays, each containing a chunk of the original array
+ */
+function chunkArray(arr, size) {
+  const result = [];
+  let i = 0;
+  while (i < arr.length) {
+    result.push(arr.slice(i, i + size));
+    i += size;
+  }
+  return result;
+}
+
+/**
  * Validates the provided data against the expression and query.
  * It processes the data in batches to optimize performance and returns matched UUIDs.
  * This function checks for the presence of date selectors and handles different phases based on the selected dates.
@@ -212,82 +322,87 @@ function mergeMatchedObjects(a, b) {
 async function validateData(data, expression, query, res, options = {}) {
   const { writeFinalData = true, groupIndex = null } = options;
 
-  if (!data || typeof data !== "object" || Object.keys(data).length === 0) {
-    return res.status(400).json({ message: "No data found" });
-  }
-
-  let isTCCNo = expression.some((item) => item.type === "selector" && item.value?.selectedOption1 === "TCC" && item.value?.selectedOption2 === "No");
-  let isScreeningNo = expression.some((item) => item.type === "selector" && item.value?.selectedOption1 === "Screening" && item.value?.selectedOption2 === "No");
-  let isSurveyNo = expression.some((item) => item.type === "selector" && item.value?.selectedOption1 === "Survey" && item.value?.selectedOption2 === "No");
+  let isTCCNo = expression.some((item) => item.type === "selector" && item.value?.selectedOption1 === "TCC" && item.value?.selectedOption2 === "Coverage Status");
+  let isScreeningNo = expression.some((item) => item.type === "selector" && item.value?.selectedOption1 === "Screening" && item.value?.selectedOption2 === "Coverage Status");
+  let isSurveyNo = expression.some((item) => item.type === "selector" && item.value?.selectedOption1 === "Survey" && item.value?.selectedOption2 === "Coverage Status");
 
   let priorityOrder = null;
 
+  // Determine priority order based on query structure and presence of specific selectors
   if (query.includes("AND")) {
     if (isTCCNo) {
       priorityOrder = ["manual_vital_data", "Form_3", "Form_1", "patients1", "tcc_form"];
     } else if (isScreeningNo) {
       priorityOrder = ["Form_1", "patients1", "tcc_form", "manual_vital_data", "Form_3"];
     } else if (isSurveyNo) {
-      priorityOrder = ["patients1"];
+      priorityOrder = ["patients1", "tcc_form", "manual_vital_data", "Form_3", "Form_1"];
     } else {
       priorityOrder = ["tcc_form", "manual_vital_data", "Form_3", "Form_1", "patients1"];
     }
   } else {
     priorityOrder = ["patients1", "Form_1", "Form_3", "manual_vital_data", "tcc_form"];
   }
+
   // Only one of date range or phase date can be present between selectors
   let isDateRangePresent = false;
   let isPhaseDatePresent = false;
-  let selectedDates = { SDate: null, LDate: null };
   let isPhase1 = false;
   let isPhase2 = false;
   let isBetween = false;
+
   expression.forEach((item) => {
-    if (item.type !== "selector" || item.value?.selectedOption4 !== "general") return;
+    if (item.type === "selector") {
+      const option1 = item.value?.selectedOption1;
+      const option2 = item.value?.selectedOption2;
+      const option3 = item.value?.selectedOption3;
+      const option4 = item.value?.selectedOption4;
 
-    const option2 = item.value?.selectedOption2;
+      // Check for general Date range selector
+      if (option4 === "general" && option2 === "Date") {
+        isDateRangePresent = true;
+        if (item.value?.selectedOption3?.SDate != null && item.value?.selectedOption3?.LDate != null) {
+          if (item.value?.selectedOption3?.SDate <= stTime && item.value?.selectedOption3?.LDate <= stTime) {
+            isPhase1 = true;
+          } else if (item.value?.selectedOption3?.SDate >= stTime && item.value?.selectedOption3?.LDate >= stTime) {
+            isPhase2 = true;
+          } else {
+            isBetween = true;
+          }
+        }
+      }
 
-    if (option2 === "Date") {
-      isDateRangePresent = true;
-      // Capture the selected date range for later evaluation (general Date selector).
-      if (item.value?.selectedOption3?.SDate != null && item.value?.selectedOption3?.LDate != null) {
-        selectedDates = {
-          SDate: Number(item.value.selectedOption3.SDate),
-          LDate: Number(item.value.selectedOption3.LDate),
-        };
-      }
-      if (item.value?.selectedOption3?.SDate <= stTime && item.value?.selectedOption3?.LDate <= stTime) {
-        isPhase1 = true;
-      } else if (item.value?.selectedOption3?.SDate >= stTime && item.value?.selectedOption3?.LDate >= stTime) {
-        isPhase2 = true;
-      } else {
-        isBetween = true;
-      }
-    }
-
-    if (option2 === "Phase 1" || option2 === "Phase 2") {
-      isPhaseDatePresent = true;
-      if (option2 === "Phase 1") {
-        isPhase1 = true;
-      }
-      if (option2 === "Phase 2") {
-        isPhase2 = true;
+      // Check for Coverage Status phase date selector
+      if ((option1 === "Survey" || option1 === "Screening" || option1 === "TCC") && option2 === "Coverage Status") {
+        isPhaseDatePresent = true;
+        if (option3 === "Covered in Phase 1") {
+          isPhase1 = true;
+        } else if (option3 === "Not Covered in Phase 1") {
+          // isPhase1 = true;
+          isPhase2 = true;
+        } else if (option3 === "Covered in Phase 2") {
+          isPhase2 = true;
+        } else if (option3 === "Not Covered in Phase 2") {
+          // isPhase2 = true;
+          isPhase1 = true;
+        }
       }
     }
   });
+
   // Only one of date range or phase date can be present
   if (isDateRangePresent && isPhaseDatePresent) {
     return res.status(400).json({ message: "Cannot have both Date and Phase selectors in the same query" });
   }
-  let isDatePresent = isDateRangePresent || isPhaseDatePresent;
 
+  let isDatePresent = isDateRangePresent || isPhaseDatePresent;
+  console.log("isDatePresent:", isDatePresent, " isDateRangePresent:", isDateRangePresent, " isPhaseDatePresent:", isPhaseDatePresent);
+  console.log("isPhase1:", isPhase1, " isPhase2:", isPhase2, " isBetween:", isBetween);
   let patients = null;
   let allUUIDsCount = 0;
 
   for (const key of priorityOrder) {
     if (data[key]) {
       console.log("priorityOrder Processing data for key:", key);
-
       patients = data[key];
       Object.values(patients).forEach((panchayathData) => {
         if (typeof panchayathData !== "object") return;
@@ -310,8 +425,8 @@ async function validateData(data, expression, query, res, options = {}) {
   const BATCH_SIZE = 500;
   console.log("Batch size set to:", BATCH_SIZE);
 
+  // Collect all UUID entries with their panchayathId and villageId for processing in batches
   const allUUIDEntries = [];
-
   for (const panchayathId in patients) {
     const panchayathData = patients[panchayathId];
     if (typeof panchayathData !== "object") continue;
@@ -324,22 +439,6 @@ async function validateData(data, expression, query, res, options = {}) {
     }
   }
 
-  /**
-   * This function chunks an array into smaller arrays of a specified size.
-   * It iterates through the original array and slices it into chunks of the specified size.
-   * @param {number} arr
-   * @param {number} size
-   * @returns {Array} - An array of arrays, each containing a chunk of the original array
-   */
-  function chunkArray(arr, size) {
-    const result = [];
-    let i = 0;
-    while (i < arr.length) {
-      result.push(arr.slice(i, i + size));
-      i += size;
-    }
-    return result;
-  }
   const uuidBatches = chunkArray(allUUIDEntries, BATCH_SIZE);
   let processedCount = 0;
 
@@ -349,14 +448,26 @@ async function validateData(data, expression, query, res, options = {}) {
       uuidBatch.map(async ({ panchayathId, villageId, uuid }) => {
         let patData = {};
         let form1Data = {};
-        let Form1_maxTimestamp = null;
-        let Form1_ph1MaxTimestamp = null;
-        let Form1_ph2MaxTimestamp = null;
-
-        let form1Timesatamp = [];
         let MVD = {};
         let form3Data = {};
         let tccFormData = {};
+
+        let Form1_maxTimestamp = null; // Using this variable for general when SDate and LDate are between phase 1 and phase 2
+        let Form1_ph1MaxTimestamp = null; // Using this variable for general when SDate and LDate are in phase 1
+        let Form1_ph2MaxTimestamp = null; // Using this variable for general when SDate and LDate are in phase 2
+        // let form1Timesatamp = [];
+
+        // Track per-node phase coverage based on timestamps 
+        // Using these flags when only Coverage Status is selected
+        let Form1_hasPhase1 = false;
+        let Form1_hasPhase2 = false;
+        let MVD_hasPhase1 = false;
+        let MVD_hasPhase2 = false;
+        let Form3_hasPhase1 = false;
+        let Form3_hasPhase2 = false;
+        let TCC_hasPhase1 = false;
+        let TCC_hasPhase2 = false;
+
         if (!patData || typeof patData !== "object") return;
 
         if (data["patients1"]) {
@@ -369,15 +480,17 @@ async function validateData(data, expression, query, res, options = {}) {
           const form1CData = data["Form_1"][panchayathId]?.[villageId]?.[uuid] || {};
           if (form1CData) {
             if (isDatePresent) {
+              // Date is selected or Coverage Status is selected
               const timestampKeys = Object.keys(form1CData)
                 .map((t) => Number(t))
                 .filter((t) => Number.isFinite(t));
               if (isDateRangePresent) {
+                // Date range is selected
                 if (isPhase1) {
                   const filteredPhase1Timestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
                   if (filteredPhase1Timestamps.length > 0) {
                     Form1_ph1MaxTimestamp = Math.max(...filteredPhase1Timestamps);
-                    form1Data[Form1_ph1MaxTimestamp] = form1CData[String(Form1_ph1MaxTimestamp)];
+                    form1Data[Form1_ph1MaxTimestamp] = form1CData[Form1_ph1MaxTimestamp];
                   } else {
                     Form1_ph1MaxTimestamp = null;
                   }
@@ -385,39 +498,41 @@ async function validateData(data, expression, query, res, options = {}) {
                   const filteredPhase2Timestamps = timestampKeys.filter((timestamp) => timestamp >= stTime);
                   if (filteredPhase2Timestamps.length > 0) {
                     Form1_ph2MaxTimestamp = Math.max(...filteredPhase2Timestamps);
-                    form1Data[Form1_ph2MaxTimestamp] = form1CData[String(Form1_ph2MaxTimestamp)];
+                    form1Data[Form1_ph2MaxTimestamp] = form1CData[Form1_ph2MaxTimestamp];
                   } else {
                     Form1_ph2MaxTimestamp = null;
                   }
                 } else if (isBetween) {
                   if (timestampKeys.length > 0) {
                     Form1_maxTimestamp = Math.max(...timestampKeys);
-                    form1Data[Form1_maxTimestamp] = form1CData[String(Form1_maxTimestamp)];
+                    form1Data[Form1_maxTimestamp] = form1CData[Form1_maxTimestamp];
                   } else {
                     Form1_maxTimestamp = null;
                   }
                 }
               } else if (isPhaseDatePresent) {
+                // Coverage Status phase date is selected
+                if (timestampKeys.length > 0) {
+                  Form1_hasPhase1 = timestampKeys.some((t) => t <= stTime);
+                  Form1_hasPhase2 = timestampKeys.some((t) => t >= stTime);
+                }
                 if (isPhase1) {
                   const filteredPhase1Timestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
-                  if (filteredPhase1Timestamps.length > 0) {
-                    Form1_ph1MaxTimestamp = Math.max(...filteredPhase1Timestamps);
-                    form1Data[Form1_ph1MaxTimestamp] = form1CData[String(Form1_ph1MaxTimestamp)];
-                  } else {
-                    Form1_ph1MaxTimestamp = null;
+                  const maxTimestamp = Math.max(...filteredPhase1Timestamps);
+                  if (maxTimestamp !== -Infinity) {
+                    form1Data[maxTimestamp] = form1CData[maxTimestamp];
                   }
                 }
                 if (isPhase2) {
                   const filteredPhase2Timestamps = timestampKeys.filter((timestamp) => timestamp >= stTime);
-                  if (filteredPhase2Timestamps.length > 0) {
-                    Form1_ph2MaxTimestamp = Math.max(...filteredPhase2Timestamps);
-                    form1Data[Form1_ph2MaxTimestamp] = form1CData[String(Form1_ph2MaxTimestamp)];
-                  } else {
-                    Form1_ph2MaxTimestamp = null;
+                  const maxTimestamp = Math.max(...filteredPhase2Timestamps);
+                  if (maxTimestamp !== -Infinity) {
+                    form1Data[maxTimestamp] = form1CData[maxTimestamp];
                   }
                 }
               }
             } else {
+              // No date or coverage status selected, get max timestamps from both phases
               let maxPhase1Timestamp = null;
               let maxPhase2Timestamp = null;
               Object.keys(form1CData).forEach((timestamp) => {
@@ -432,7 +547,7 @@ async function validateData(data, expression, query, res, options = {}) {
                   }
                 }
               });
-              form1Timesatamp = Math.max(maxPhase1Timestamp, maxPhase2Timestamp);
+              // form1Timesatamp = Math.max(maxPhase1Timestamp, maxPhase2Timestamp);
               if (maxPhase1Timestamp !== null) {
                 form1Data[maxPhase1Timestamp] = form1CData[maxPhase1Timestamp];
               }
@@ -445,9 +560,14 @@ async function validateData(data, expression, query, res, options = {}) {
         if (data["manual_vital_data"]) {
           const manualVitalData = data["manual_vital_data"][panchayathId]?.[villageId]?.[uuid] || {};
           if (manualVitalData) {
+            const mvdTimestampNums = Object.keys(manualVitalData)
+              .map((t) => Number(t))
+              .filter((t) => Number.isFinite(t));
             if (isDatePresent) {
+              // Date is selected or Coverage Status is selected
               const timestampKeys = Object.keys(manualVitalData);
               if (isDateRangePresent) {
+                // Date range is selected
                 if (isPhase1) {
                   const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
                   const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
@@ -468,6 +588,11 @@ async function validateData(data, expression, query, res, options = {}) {
                   }
                 }
               } else if (isPhaseDatePresent) {
+                // Coverage Status phase date is selected
+                if (mvdTimestampNums.length > 0) {
+                  MVD_hasPhase1 = mvdTimestampNums.some((t) => t <= stTime);
+                  MVD_hasPhase2 = mvdTimestampNums.some((t) => t >= stTime);
+                }
                 if (isPhase1) {
                   const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
                   const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
@@ -484,6 +609,7 @@ async function validateData(data, expression, query, res, options = {}) {
                 }
               }
             } else {
+              // No date or coverage status selected, get max timestamps from both phases
               let maxPhase1Timestamp = null;
               let maxPhase2Timestamp = null;
               Object.keys(manualVitalData).forEach((timestamp) => {
@@ -510,7 +636,12 @@ async function validateData(data, expression, query, res, options = {}) {
         if (data["Form_3"]) {
           const form3CData = data["Form_3"][panchayathId]?.[villageId]?.[uuid] || {};
           if (form3CData) {
+            const form3TimestampNums = Object.keys(form3CData)
+              .map((t) => Number(t))
+              .filter((t) => Number.isFinite(t));
+
             if (isDatePresent) {
+              // Date is selected or Coverage Status is selected
               const timestampKeys = Object.keys(form3CData);
               if (isDateRangePresent) {
                 if (isPhase1) {
@@ -532,6 +663,11 @@ async function validateData(data, expression, query, res, options = {}) {
                   }
                 }
               } else if (isPhaseDatePresent) {
+                // Coverage Status phase date is selected
+                if (form3TimestampNums.length > 0) {
+                  Form3_hasPhase1 = form3TimestampNums.some((t) => t <= stTime);
+                  Form3_hasPhase2 = form3TimestampNums.some((t) => t >= stTime);
+                }
                 if (isPhase1) {
                   const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
                   const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
@@ -574,6 +710,11 @@ async function validateData(data, expression, query, res, options = {}) {
         if (data["tcc_form"]) {
           const tccFormCData = data["tcc_form"][panchayathId]?.[villageId]?.[uuid] || {};
           if (tccFormCData) {
+            // Derive phase coverage flags for tcc_form from its timestamps
+            const tccTimestampNums = Object.keys(tccFormCData)
+              .map((t) => Number(t))
+              .filter((t) => Number.isFinite(t));
+
             if (isDatePresent) {
               const timestampKeys = Object.keys(tccFormCData);
               if (isDateRangePresent) {
@@ -596,6 +737,10 @@ async function validateData(data, expression, query, res, options = {}) {
                   }
                 }
               } else if (isPhaseDatePresent) {
+                if (tccTimestampNums.length > 0) {
+                  TCC_hasPhase1 = tccTimestampNums.some((t) => t <= stTime);
+                  TCC_hasPhase2 = tccTimestampNums.some((t) => t >= stTime);
+                }
                 if (isPhase1) {
                   const filteredTimestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
                   const maxTimestamp = Math.max(...filteredTimestamps.map(Number));
@@ -639,53 +784,84 @@ async function validateData(data, expression, query, res, options = {}) {
         const conditionMap = {};
         for (const item of expression) {
           if (item.type === "selector") {
+  
             const { label, value } = item;
             const { selectedOption2, selectedOption3, selectedOption4 } = value;
-            // console.log(selectedOption2, selectedOption3, selectedOption4);
-            // console.log("Evaluating for label:", isPhaseDatePresent, isPhase1, Form1_ph1MaxTimestamp <= stTime, Form1_ph1MaxTimestamp, Form1_ph1MaxTimestamp !== null);
+            const hasPhase1 = Form1_ph1MaxTimestamp !== null && Form1_ph1MaxTimestamp <= stTime;
+            const hasPhase2 = Form1_ph2MaxTimestamp !== null && Form1_ph2MaxTimestamp >= stTime;
 
-            if (selectedOption4 === "patients1") {
+            if (selectedOption4 === "patients1" && !Array.isArray(selectedOption4)) {
+              // Validate against patients1 data
               conditionMap[label] = option3Validator(selectedOption2, selectedOption3, patData, selectedOption4);
-            } else if (selectedOption4 === "Form_1") {
+            } else if (selectedOption4 === "Form_1" && !Array.isArray(selectedOption4)) {
+              // Validate against Form_1 data
               conditionMap[label] = option3Validator(selectedOption2, selectedOption3, form1Data, selectedOption4);
-            } else if (selectedOption4 === "manual_vital_data") {
+            } else if (selectedOption4 === "manual_vital_data" && !Array.isArray(selectedOption4)) {
+              // Validate against manual_vital_data
               conditionMap[label] = option3Validator(selectedOption2, selectedOption3, MVD, selectedOption4);
-            } else if (selectedOption4 === "Form_3") {
+            } else if (selectedOption4 === "Form_3" && !Array.isArray(selectedOption4)) {
+              // Validate against Form_3 data
               conditionMap[label] = option3Validator(selectedOption2, selectedOption3, form3Data, selectedOption4);
-            } else if (selectedOption4 === "tcc_form") {
+            } else if (selectedOption4 === "tcc_form" && !Array.isArray(selectedOption4)) {
+              // Validate against tcc_form data
               conditionMap[label] = option3Validator(selectedOption2, selectedOption3, tccFormData, selectedOption4);
             } else if (selectedOption4 === "general" && selectedOption2 === "Panchayath" && selectedOption3 === panchayathId) {
+              // set true if panchayathId matches
               conditionMap[label] = true;
             } else if (selectedOption4 === "general" && selectedOption2 === "Village" && selectedOption3 === villageId) {
+              // set true if villageId matches
               conditionMap[label] = true;
-            } else if (
-              selectedOption4 === "general" &&
-              selectedOption2 === "Date" &&
-              isDatePresent &&
-              selectedDates.SDate != null &&
-              selectedDates.LDate != null &&
-              Form1_maxTimestamp != null &&
-              selectedDates.SDate <= Form1_maxTimestamp &&
-              Form1_maxTimestamp <= selectedDates.LDate
-            ) {
+            } else if (selectedOption4 === "general" && selectedOption2 === "Date" && isDatePresent && isPhase1 && hasPhase1) {
+              // set true if date is present and in phase 1
               conditionMap[label] = true;
-            } else if (selectedOption4 === "general" && selectedOption2 === "Phase 1" && isPhaseDatePresent && isPhase1 && Form1_ph1MaxTimestamp != null && Form1_ph1MaxTimestamp <= stTime) {
+            } else if (selectedOption4 === "general" && selectedOption2 === "Date" && isDatePresent && isPhase2 && hasPhase2) {
+              // set true if date is present and in phase 2
               conditionMap[label] = true;
-            } else if (selectedOption4 === "general" && selectedOption2 === "Phase 2" && isPhaseDatePresent && isPhase2 && Form1_ph2MaxTimestamp != null && Form1_ph2MaxTimestamp >= stTime) {
+            } else if (selectedOption4 === "general" && selectedOption2 === "Date" && isDatePresent && isBetween && Form1_maxTimestamp !== null) {
+              // set true if date is present and in between phases
               conditionMap[label] = true;
-            } else if (Array.isArray(selectedOption4) && selectedOption4.includes("patients1") && selectedOption4.includes("Form_1")) {
-              const result1 = option3Validator(selectedOption2, selectedOption3, patData, "patients1");
-              const result2 = option3Validator(selectedOption2, selectedOption3, form1Data, "Form_1");
-              // console.log("Combined Result for patients1 and Form_1:", result1, result2);
-              conditionMap[label] = result1 && result2;
-            } else if (Array.isArray(selectedOption4) && selectedOption4.includes("manual_vital_data") && selectedOption4.includes("Form_3")) {
-              const result1 = option3Validator(selectedOption2, selectedOption3, MVD, "manual_vital_data");
-              const result2 = option3Validator(selectedOption2, selectedOption3, form3Data, "Form_3");
-              // console.log("Combined Result for manual_vital_data and Form_3:", result1, result2);
-              conditionMap[label] = result1 && result2;
-            } else if (Array.isArray(selectedOption4) && selectedOption4.includes("tcc_form")) {
-              conditionMap[label] = option3Validator(selectedOption2, selectedOption3, tccFormData, "tcc_form");
+            } else if (selectedOption2 === "Coverage Status" && Array.isArray(selectedOption4) && selectedOption4.includes("patients1") && selectedOption4.includes("Form_1")) {
+              // Survey Coverage Status conditions
+              if (selectedOption3 === "Covered in Phase 1") {
+                conditionMap[label] = Form1_hasPhase1;
+              } else if (selectedOption3 === "Covered in Phase 2") {
+                conditionMap[label] = Form1_hasPhase2;
+              } else if (selectedOption3 === "Not Covered in Phase 1") {
+                conditionMap[label] = !Form1_hasPhase1 && Form1_hasPhase2;
+              } else if (selectedOption3 === "Not Covered in Phase 2") {
+                conditionMap[label] = Form1_hasPhase1 && !Form1_hasPhase2;
+              } else {
+                conditionMap[label] = false;
+              }
+            } else if (selectedOption2 === "Coverage Status" && Array.isArray(selectedOption4) && selectedOption4.includes("Form_3") && selectedOption4.includes("manual_vital_data")) {
+              // Screening Coverage Status conditions
+              if (selectedOption3 === "Covered in Phase 1") {
+                conditionMap[label] = MVD_hasPhase1 && Form3_hasPhase1 && Form1_hasPhase1;
+              } else if (selectedOption3 === "Covered in Phase 2") {
+                conditionMap[label] = MVD_hasPhase2 && Form3_hasPhase2 && Form1_hasPhase2;
+              } else if (selectedOption3 === "Not Covered in Phase 1") {
+                conditionMap[label] = !Form1_hasPhase1 && !Form3_hasPhase1 && !MVD_hasPhase1 && Form1_hasPhase2 && Form3_hasPhase2 && MVD_hasPhase2;
+              } else if (selectedOption3 === "Not Covered in Phase 2") {
+                conditionMap[label] = Form1_hasPhase1 && Form3_hasPhase1 && MVD_hasPhase1 && !Form1_hasPhase2 && !Form3_hasPhase2 && !MVD_hasPhase2;
+              } else {
+                conditionMap[label] = false;
+              }
+            } else if (selectedOption2 === "Coverage Status" && Array.isArray(selectedOption4) && selectedOption4.includes("tcc_form")) {
+              // TCC Coverage Status conditions
+              if (selectedOption3 === "Covered in Phase 1") {
+                conditionMap[label] = TCC_hasPhase1 && Form1_hasPhase1;
+              } else if (selectedOption3 === "Covered in Phase 2") {
+                conditionMap[label] = TCC_hasPhase2 && Form1_hasPhase2;
+              } else if (selectedOption3 === "Not Covered in Phase 1") {
+                conditionMap[label] = !Form1_hasPhase1 && !TCC_hasPhase1 && Form1_hasPhase2 && TCC_hasPhase2;
+              } else if (selectedOption3 === "Not Covered in Phase 2") {
+                conditionMap[label] = Form1_hasPhase1 && TCC_hasPhase1 && !Form1_hasPhase2 && !TCC_hasPhase2;
+              } else {
+                conditionMap[label] = false;
+              }
             } else {
+              // No matching condition, set to false
+              if (villageId === "22241") console.log(`UUID ${uuid} - No matching condition for selector with label: ${label} and is set to false`);
               conditionMap[label] = false;
             }
           }
@@ -696,11 +872,26 @@ async function validateData(data, expression, query, res, options = {}) {
           processedQuery = processedQuery.replace(new RegExp(`\\b${label}\\b`, "g"), conditionMap[label]);
         }
 
+        const preEvalIssues = findQueryBreakIssues(processedQuery, conditionMap);
+        if (preEvalIssues.length > 0) {
+          console.log(`[QueryFetch_V1] Possible query break for ${panchayathId}/${villageId}/${uuid}` + (groupIndex ? ` (group ${groupIndex})` : ""));
+          console.log("[QueryFetch_V1] Issues:", preEvalIssues);
+          console.log("[QueryFetch_V1] Original query:", query);
+          console.log("[QueryFetch_V1] Processed (pre AND/OR convert):", processedQuery);
+        }
+
         try {
           processedQuery = processedQuery.replace(/AND/g, "&&").replace(/OR/g, "||");
+          const postConvertIssues = findQueryBreakIssues(processedQuery, conditionMap);
+          if (postConvertIssues.length > 0) {
+            console.log(`[QueryFetch_V1] Query still looks broken after AND/OR convert for ${panchayathId}/${villageId}/${uuid}` + (groupIndex ? ` (group ${groupIndex})` : ""));
+            console.log("[QueryFetch_V1] Issues:", postConvertIssues);
+            console.log("[QueryFetch_V1] Processed (post AND/OR convert):", processedQuery);
+          }
           const evaluation = eval(processedQuery);
           if (villageId === "22241") console.log(`Evaluating for UUID: ${uuid} of villageId: ${villageId} with query: ${processedQuery} Result: ${evaluation}`);
           if (evaluation) {
+            // UUID matches the query conditions fetch the other node data that were not in required nodes
             processedCount++;
             res.write(JSON.stringify({ processed: processedCount, ...(groupIndex ? { group: groupIndex } : {}) }) + "\n");
             const dbRef = ref(database);
@@ -723,53 +914,45 @@ async function validateData(data, expression, query, res, options = {}) {
               )
             );
 
-            if (expression.some((item) => item.type === "selector" && item.value?.selectedOption4 === "general")) {
-              if (!requiredNodes.includes("Form_1")) {
-                requiredNodes.push("Form_1");
-              }
+            if (
+              expression.some((item) => item.type === "selector" && (item.value?.selectedOption4 === "general" || item.value?.selectedOption2 === "Coverage Status")) &&
+              !requiredNodes.includes("Form_1")
+            ) {
+              requiredNodes.push("Form_1");
             }
-            // console.log("Final Required Nodes for fetching additional data:", requiredNodes);
-            const formNode = formNodes.filter((node) => !requiredNodes.includes(node));
 
-            // console.log("Fetching additional nodes for UUID:", uuid, "Nodes:", formNode);
+            const formNode = formNodes.filter((node) => !requiredNodes.includes(node));
 
             const fetchPromises = formNode.map(async (node) => {
               try {
                 const snapshot = await get(child(dbRef, `${node}/${panchayathId}/${villageId}/${uuid}`));
                 if (snapshot.exists()) {
-                  // console.log(`fetching data ${node}/${panchayathId}/${villageId}/${uuid}`);
                   const nodeData = snapshot.val();
                   if (node !== "patients1") {
                     if (isDatePresent) {
                       if (isPhase1) {
-                        // console.log("In phase 1");
-
                         const filteredTimestamps = Object.keys(nodeData).filter((timestamp) => timestamp <= stTime);
                         const maxFilteredTimestamp = Math.max(...filteredTimestamps.map(Number));
                         if (maxFilteredTimestamp !== -Infinity) {
                           infoObject[node] = {
                             [maxFilteredTimestamp]: nodeData[maxFilteredTimestamp],
                           };
-                          // console.log("Phase 1 infoObject[node]: ", infoObject[node]);
                         } else {
                           infoObject[node] = {};
                         }
                       }
                       if (isPhase2) {
-                        // console.log("In phase 2");
                         const filteredTimestamps = Object.keys(nodeData).filter((timestamp) => timestamp >= stTime);
                         const maxFilteredTimestamp = Math.max(...filteredTimestamps.map(Number));
                         if (maxFilteredTimestamp !== -Infinity) {
                           infoObject[node] = {
                             [maxFilteredTimestamp]: nodeData[maxFilteredTimestamp],
                           };
-                          // console.log("Phase 2 infoObject[node]: ", infoObject[node]);
                         } else {
                           infoObject[node] = {};
                         }
                       }
                       if (isBetween) {
-                        console.log("In phase b/w");
                         const timestampKeys = Object.keys(nodeData);
                         const maxTimestamp = Math.max(...timestampKeys.map(Number));
                         if (maxTimestamp !== -Infinity) {
@@ -809,16 +992,6 @@ async function validateData(data, expression, query, res, options = {}) {
                 } else {
                   infoObject[node] = {};
                 }
-                // console.log(`Fetched ${node}/${panchayathId}/${villageId}/${uuid} successfully.`);
-                let level1 = 0;
-                let level2 = 0;
-                Object.keys(infoObject[node]).forEach((key1) => {
-                  level1++;
-                  Object.keys(infoObject[node][key1]).forEach((key2) => {
-                    level2++;
-                  });
-                });
-                // console.log(`Data levels for ${node} - Level 1 keys: ${level1}, Level 2 keys: ${level2}`);
               } catch (err) {
                 console.error(`Error fetching ${node} for UUID ${uuid}:`, err);
                 infoObject[node] = null;
@@ -837,6 +1010,12 @@ async function validateData(data, expression, query, res, options = {}) {
           }
         } catch (error) {
           console.error(`Error evaluating expression for UUID ${uuid}:`, error);
+          console.error("[QueryFetch_V1] Eval context:", {
+            key: `${panchayathId}/${villageId}/${uuid}`,
+            group: groupIndex ?? undefined,
+            originalQuery: query,
+            processedQuery,
+          });
         }
       })
     );
