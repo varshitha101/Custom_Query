@@ -457,7 +457,7 @@ async function validateData(data, expression, query, res, options = {}) {
         let Form1_ph2MaxTimestamp = null; // Using this variable for general when SDate and LDate are in phase 2
         // let form1Timesatamp = [];
 
-        // Track per-node phase coverage based on timestamps 
+        // Track per-node phase coverage based on timestamps
         // Using these flags when only Coverage Status is selected
         let Form1_hasPhase1 = false;
         let Form1_hasPhase2 = false;
@@ -784,7 +784,6 @@ async function validateData(data, expression, query, res, options = {}) {
         const conditionMap = {};
         for (const item of expression) {
           if (item.type === "selector") {
-  
             const { label, value } = item;
             const { selectedOption2, selectedOption3, selectedOption4 } = value;
             const hasPhase1 = Form1_ph1MaxTimestamp !== null && Form1_ph1MaxTimestamp <= stTime;
