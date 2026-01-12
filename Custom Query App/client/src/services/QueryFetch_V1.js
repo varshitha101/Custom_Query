@@ -24,7 +24,7 @@ export default async function handleQueryFetch(expression, expressionString, set
 
     // Add timeout to the fetch request
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000); // 30 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 seconds timeout  
 
     const response = await fetch(`${import.meta.env.VITE_BASE_SERVER_URL}/query/fetch/V1`, {
       method: "POST",
@@ -88,11 +88,11 @@ export default async function handleQueryFetch(expression, expressionString, set
               if (excelResponse.length === 0) {
                 console.log("No data found for the given query.");
                 toast.error("No data found for the given query.");
-
                 return;
               }
               const originalCount = excelResponse.length;
-              // Keep only rows where both patients1 and Form_1 exist and are not empty
+              // Keep only rows where patients1 and Form_1 exist and are not empty.
+              // profile_history1 is optional; when present it will override patients1 per phase.
               excelResponse = excelResponse.filter((row) => row.patients1 && Object.keys(row.patients1).length > 0 && row.Form_1 && Object.keys(row.Form_1).length > 0);
               const removedCount = originalCount - excelResponse.length;
               console.log(`Removed patients : ${removedCount}`);
@@ -111,7 +111,7 @@ export default async function handleQueryFetch(expression, expressionString, set
               }
               // --- FLATTENING LOGIC STARTS HERE ---
               const TIMESTAMP_CUTOFF = 1704047400;
-              const FORM_KEYS = ["Form_1", "manual_vital_data", "Form_3", "tcc_form"];
+              const FORM_KEYS = ["Form_1", "manual_vital_data", "Form_3", "tcc_form", "profile_history1"];
 
               function isNotEmpty(obj) {
                 return obj && Object.keys(obj).length > 0;
@@ -123,20 +123,36 @@ export default async function handleQueryFetch(expression, expressionString, set
 
                 FORM_KEYS.forEach((formKey) => {
                   if (row[formKey]) {
-                    Object.entries(row[formKey]).forEach(([ts, value]) => {
-                      if (Number(ts) <= TIMESTAMP_CUTOFF) {
-                        ph1Row[formKey][ts] = value;
-                      } else {
-                        ph2Row[formKey][ts] = value;
-                      }
-                    });
+                    if (formKey === "profile_history1") {
+                      // Special handling for profile_history1
+                      Object.entries(row[formKey]).forEach(([ts, value]) => {
+                        if (!isNotEmpty(value)) return;
+                        if (Number(ts) <= TIMESTAMP_CUTOFF) {
+                          // Use profile_history1 data for Phase 1
+                          ph1Row.patients1 = value;
+                        } else {
+                          // Use profile_history1 data for Phase 2
+                          ph2Row.patients1 = value;
+                        }
+                      });
+                    } else {
+                      Object.entries(row[formKey]).forEach(([ts, value]) => {
+                        if (Number(ts) <= TIMESTAMP_CUTOFF) {
+                          ph1Row[formKey][ts] = value;
+                        } else {
+                          ph2Row[formKey][ts] = value;
+                        }
+                      });
+                    }
                   }
                 });
 
-                // Only add patients1 if present
-                if (row.patients1) {
-                  ph1Row.patients1 = { ...row.patients1 };
-                  ph2Row.patients1 = { ...row.patients1 };
+                // Only add patients1 if profile_history1 is not used to populate it
+                if (!isNotEmpty(ph1Row.patients1)) {
+                  ph1Row.patients1 = row.patients1 || {};
+                }
+                if (!isNotEmpty(ph2Row.patients1)) {
+                  ph2Row.patients1 = row.patients1 || {};
                 }
 
                 const result = [];

@@ -24,7 +24,7 @@ export default function option3Validator(field, expectedValue, dataInfo, source)
     // Presence checks used across all sources.
     // In this app, "Yes" means data exists, "No" means data should not be there.
 
-    if (source === "patients1") {
+    if (source === "patients1" || source === "profile_history1") {
       if (field === "Age") {
         const actualValue = data[patientNode[field]];
         if (actualValue !== undefined) {

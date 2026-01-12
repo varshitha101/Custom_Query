@@ -46,7 +46,10 @@ export default async function queryFetch_V1(req, res) {
     if (expression.some((item) => item.type === "selector" && (item.value?.selectedOption4 === "general" || item.value?.selectedOption2 === "Coverage Status")) && !requiredNodes.includes("Form_1")) {
       requiredNodes.push("Form_1");
     }
-
+    // Ensure profile_history1 is included if patients1 is required
+    if (requiredNodes.includes("patients1") && !requiredNodes.includes("profile_history1")) {
+      requiredNodes.push("profile_history1");
+    }
     console.log("Required Nodes:", requiredNodes);
     const snapshots = {};
 
@@ -283,7 +286,7 @@ function mergeMatchedObjects(a, b) {
 
   const merged = { ...a, ...b };
   // Merge known node objects more safely.
-  const nodeKeys = ["patients1", "Form_1", "manual_vital_data", "Form_3", "tcc_form"];
+  const nodeKeys = ["patients1", "Form_1", "manual_vital_data", "Form_3", "tcc_form", "profile_history1"];
   for (const k of nodeKeys) {
     if (a[k] && b[k] && typeof a[k] === "object" && typeof b[k] === "object") {
       merged[k] = { ...a[k], ...b[k] };
@@ -331,16 +334,16 @@ async function validateData(data, expression, query, res, options = {}) {
   // Determine priority order based on query structure and presence of specific selectors
   if (query.includes("AND")) {
     if (isTCCNo) {
-      priorityOrder = ["manual_vital_data", "Form_3", "Form_1", "patients1", "tcc_form"];
+      priorityOrder = ["manual_vital_data", "Form_3", "Form_1", "profile_history1", "patients1", "tcc_form"];
     } else if (isScreeningNo) {
-      priorityOrder = ["Form_1", "patients1", "tcc_form", "manual_vital_data", "Form_3"];
+      priorityOrder = ["Form_1", "profile_history1", "patients1", "tcc_form", "manual_vital_data", "Form_3"];
     } else if (isSurveyNo) {
-      priorityOrder = ["patients1", "tcc_form", "manual_vital_data", "Form_3", "Form_1"];
+      priorityOrder = ["profile_history1", "patients1", "tcc_form", "manual_vital_data", "Form_3", "Form_1"];
     } else {
-      priorityOrder = ["tcc_form", "manual_vital_data", "Form_3", "Form_1", "patients1"];
+      priorityOrder = ["tcc_form", "manual_vital_data", "Form_3", "Form_1", "profile_history1", "patients1"];
     }
   } else {
-    priorityOrder = ["patients1", "Form_1", "Form_3", "manual_vital_data", "tcc_form"];
+    priorityOrder = ["profile_history1", "patients1", "Form_1", "Form_3", "manual_vital_data", "tcc_form"];
   }
 
   // Only one of date range or phase date can be present between selectors
@@ -446,6 +449,7 @@ async function validateData(data, expression, query, res, options = {}) {
   for (const uuidBatch of uuidBatches) {
     await Promise.all(
       uuidBatch.map(async ({ panchayathId, villageId, uuid }) => {
+        let profile_history1 = {};
         let patData = {};
         let form1Data = {};
         let MVD = {};
@@ -459,6 +463,8 @@ async function validateData(data, expression, query, res, options = {}) {
 
         // Track per-node phase coverage based on timestamps
         // Using these flags when only Coverage Status is selected
+        let ProfileHistory1_hasPhase1 = false;
+        let ProfileHistory1_hasPhase2 = false;
         let Form1_hasPhase1 = false;
         let Form1_hasPhase2 = false;
         let MVD_hasPhase1 = false;
@@ -470,6 +476,78 @@ async function validateData(data, expression, query, res, options = {}) {
 
         if (!patData || typeof patData !== "object") return;
 
+        if (data["profile_history1"]) {
+          const profileCData = data["profile_history1"][panchayathId]?.[villageId]?.[uuid] || {};
+          if (profileCData) {
+            if (isDatePresent) {
+              // Date is selected or Coverage Status is selected
+              const timestampKeys = Object.keys(profileCData)
+                .map((t) => Number(t))
+                .filter((t) => Number.isFinite(t));
+              if (isDateRangePresent) {
+                if (isPhase1) {
+                  const filteredPhase1Timestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
+                  if (filteredPhase1Timestamps.length > 0) {
+                    const maxTimestamp = Math.max(...filteredPhase1Timestamps);
+                    profile_history1[maxTimestamp] = profileCData[maxTimestamp];
+                  }
+                } else if (isPhase2) {
+                  const filteredPhase2Timestamps = timestampKeys.filter((timestamp) => timestamp >= stTime);
+                  if (filteredPhase2Timestamps.length > 0) {
+                    const maxTimestamp = Math.max(...filteredPhase2Timestamps);
+                    profile_history1[maxTimestamp] = profileCData[maxTimestamp];
+                  }
+                } else if (isBetween) {
+                  if (timestampKeys.length > 0) {
+                    const maxTimestamp = Math.max(...timestampKeys);
+                    profile_history1[maxTimestamp] = profileCData[maxTimestamp];
+                  }
+                }
+              } else if (isPhaseDatePresent) {
+                if (timestampKeys.length > 0) {
+                  ProfileHistory1_hasPhase1 = timestampKeys.some((t) => t <= stTime);
+                  ProfileHistory1_hasPhase2 = timestampKeys.some((t) => t >= stTime);
+                }
+                if (isPhase1) {
+                  const filteredPhase1Timestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
+                  if (filteredPhase1Timestamps.length > 0) {
+                    const maxTimestamp = Math.max(...filteredPhase1Timestamps);
+                    profile_history1[maxTimestamp] = profileCData[maxTimestamp];
+                  }
+                }
+                if (isPhase2) {
+                  const filteredPhase2Timestamps = timestampKeys.filter((timestamp) => timestamp >= stTime);
+                  if (filteredPhase2Timestamps.length > 0) {
+                    const maxTimestamp = Math.max(...filteredPhase2Timestamps);
+                    profile_history1[maxTimestamp] = profileCData[maxTimestamp];
+                  }
+                }
+              }
+            } else {
+              // No date or coverage status selected, get max timestamps from both phases
+              let maxPhase1Timestamp = null;
+              let maxPhase2Timestamp = null;
+              Object.keys(profileCData).forEach((timestamp) => {
+                if (Number(timestamp) <= stTime) {
+                  if (!maxPhase1Timestamp || Number(timestamp) > Number(maxPhase1Timestamp)) {
+                    maxPhase1Timestamp = timestamp;
+                  }
+                }
+                if (Number(timestamp) >= stTime) {
+                  if (!maxPhase2Timestamp || Number(timestamp) > Number(maxPhase2Timestamp)) {
+                    maxPhase2Timestamp = timestamp;
+                  }
+                }
+              });
+              if (maxPhase1Timestamp !== null) {
+                profile_history1[maxPhase1Timestamp] = profileCData[maxPhase1Timestamp];
+              }
+              if (maxPhase2Timestamp !== null) {
+                profile_history1[maxPhase2Timestamp] = profileCData[maxPhase2Timestamp];
+              }
+            }
+          }
+        }
         if (data["patients1"]) {
           const patCData = data["patients1"][panchayathId]?.[villageId]?.[uuid] || {};
           if (patCData) {
@@ -490,7 +568,7 @@ async function validateData(data, expression, query, res, options = {}) {
                   const filteredPhase1Timestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
                   if (filteredPhase1Timestamps.length > 0) {
                     Form1_ph1MaxTimestamp = Math.max(...filteredPhase1Timestamps);
-                    form1Data[Form1_ph1MaxTimestamp] = form1CData[Form1_ph1MaxTimestamp];
+                    if (Form1_ph1MaxTimestamp !== -Infinity) form1Data[Form1_ph1MaxTimestamp] = form1CData[Form1_ph1MaxTimestamp];
                   } else {
                     Form1_ph1MaxTimestamp = null;
                   }
@@ -498,14 +576,14 @@ async function validateData(data, expression, query, res, options = {}) {
                   const filteredPhase2Timestamps = timestampKeys.filter((timestamp) => timestamp >= stTime);
                   if (filteredPhase2Timestamps.length > 0) {
                     Form1_ph2MaxTimestamp = Math.max(...filteredPhase2Timestamps);
-                    form1Data[Form1_ph2MaxTimestamp] = form1CData[Form1_ph2MaxTimestamp];
+                    if (Form1_ph2MaxTimestamp !== -Infinity) form1Data[Form1_ph2MaxTimestamp] = form1CData[Form1_ph2MaxTimestamp];
                   } else {
                     Form1_ph2MaxTimestamp = null;
                   }
                 } else if (isBetween) {
                   if (timestampKeys.length > 0) {
                     Form1_maxTimestamp = Math.max(...timestampKeys);
-                    form1Data[Form1_maxTimestamp] = form1CData[Form1_maxTimestamp];
+                    if (Form1_maxTimestamp !== -Infinity) form1Data[Form1_maxTimestamp] = form1CData[Form1_maxTimestamp];
                   } else {
                     Form1_maxTimestamp = null;
                   }
@@ -518,16 +596,20 @@ async function validateData(data, expression, query, res, options = {}) {
                 }
                 if (isPhase1) {
                   const filteredPhase1Timestamps = timestampKeys.filter((timestamp) => timestamp <= stTime);
-                  const maxTimestamp = Math.max(...filteredPhase1Timestamps);
-                  if (maxTimestamp !== -Infinity) {
-                    form1Data[maxTimestamp] = form1CData[maxTimestamp];
+                  if (filteredPhase1Timestamps.length > 0) {
+                    const maxTimestamp = Math.max(...filteredPhase1Timestamps);
+                    if (maxTimestamp !== -Infinity) {
+                      form1Data[maxTimestamp] = form1CData[maxTimestamp];
+                    }
                   }
                 }
                 if (isPhase2) {
                   const filteredPhase2Timestamps = timestampKeys.filter((timestamp) => timestamp >= stTime);
-                  const maxTimestamp = Math.max(...filteredPhase2Timestamps);
-                  if (maxTimestamp !== -Infinity) {
-                    form1Data[maxTimestamp] = form1CData[maxTimestamp];
+                  if (filteredPhase2Timestamps.length > 0) {
+                    const maxTimestamp = Math.max(...filteredPhase2Timestamps);
+                    if (maxTimestamp !== -Infinity) {
+                      form1Data[maxTimestamp] = form1CData[maxTimestamp];
+                    }
                   }
                 }
               }
@@ -790,8 +872,13 @@ async function validateData(data, expression, query, res, options = {}) {
             const hasPhase2 = Form1_ph2MaxTimestamp !== null && Form1_ph2MaxTimestamp >= stTime;
 
             if (selectedOption4 === "patients1" && !Array.isArray(selectedOption4)) {
-              // Validate against patients1 data
-              conditionMap[label] = option3Validator(selectedOption2, selectedOption3, patData, selectedOption4);
+              if (profile_history1 && Object.keys(profile_history1).length > 0) {
+                // Validate against profile_history1 data
+                conditionMap[label] = option3Validator(selectedOption2, selectedOption3, profile_history1, "profile_history1");
+              } else {
+                // Validate against patients1 data
+                conditionMap[label] = option3Validator(selectedOption2, selectedOption3, patData, selectedOption4);
+              }
             } else if (selectedOption4 === "Form_1" && !Array.isArray(selectedOption4)) {
               // Validate against Form_1 data
               conditionMap[label] = option3Validator(selectedOption2, selectedOption3, form1Data, selectedOption4);
@@ -902,6 +989,7 @@ async function validateData(data, expression, query, res, options = {}) {
               manual_vital_data: MVD,
               Form_3: form3Data,
               tcc_form: tccFormData,
+              profile_history1: profile_history1,
             };
 
             let requiredNodes = Array.from(
