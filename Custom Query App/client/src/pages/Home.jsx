@@ -107,7 +107,7 @@ export default function Home() {
               option3Value = `${s.selectedOption3.operator} ${s.selectedOption3.name || s.selectedOption3.id}`;
             } else if (isRangeSelectPlusEnterFields) {
               option3Value = `${s.selectedOption3.operator} ${s.selectedOption3.value}`;
-            }  else if (typeof s.selectedOption3 === "object") {
+            } else if (typeof s.selectedOption3 === "object") {
               if (s.selectedOption3.operator && s.selectedOption3.value !== undefined) {
                 option3Value = `${s.selectedOption3.operator} ${s.selectedOption3.value}`;
               } else {
@@ -150,7 +150,7 @@ export default function Home() {
           }
           return null;
         })
-        .filter((item) => item !== null) // Remove null values from result
+        .filter((item) => item !== null), // Remove null values from result
     );
   }, [selectors]);
   // Effect to check if any selector has "Date" as selectedOption2
@@ -200,7 +200,7 @@ export default function Home() {
       setSelectors(reIndexedSelectors);
       setExpression([]);
     },
-    [selectors]
+    [selectors],
   );
 
   /**
@@ -225,7 +225,7 @@ export default function Home() {
         toast.error("At least one selector is required");
       }
     },
-    [selectors, expression]
+    [selectors, expression],
   );
 
   /**
@@ -583,7 +583,7 @@ export default function Home() {
           right: "10px",
           color: "gray",
         }}>
-        Version 0.15.3
+        Version 0.15.4
       </Typography>
     </Box>
   );

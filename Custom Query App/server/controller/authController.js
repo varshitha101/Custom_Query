@@ -1,6 +1,6 @@
 import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
 import { ref, update, child, get } from "firebase/database";
-import { auth, database } from "../db/config.js";
+import { auth, database, firebaseConfig } from "../db/config.js";
 /**
  * Login function to authenticate users using Firebase Authentication.
  * This function checks if the user exists in the database and verifies their role.
@@ -41,6 +41,7 @@ export const login = async (req, res) => {
     if (snapshot.exists()) {
       const role = snapshot.val().role;
       console.log("User role:", role);
+      // Check if the user has the authorized role
       if (role === "OPH" || role === "Director") {
         console.log("User authenticated successfully");
         try {
@@ -59,50 +60,23 @@ export const login = async (req, res) => {
           if (!phone) return res.status(400).json({ message: "User phone not found" });
 
           const currentTime = new Date().toISOString();
-          const lastLoginTime = userData.loginDetails.loginTime;
-
-          console.log("Current time:", currentTime);
-          console.log("Last login time:", lastLoginTime);
+          const lastLoginTime = userData?.loginDetails?.loginTime;
+          const lastPcIdentifier = userData?.loginDetails?.pcIdentifier;
+          // console.log("Current time:", currentTime);
+          // console.log("Last login time:", lastLoginTime);
           const timeDifference = lastLoginTime ? (new Date(currentTime) - new Date(lastLoginTime)) / (1000 * 60 * 60 * 24) : null;
           console.log("timeDifference in days:", timeDifference);
 
-          if (userWinID !== userData.loginDetails.pcIdentifier || userData.loginDetails.pcIdentifier === null) {
-            if (timeDifference > 90 || timeDifference === null) {
-              // both pcIdentifier are not matching and time difference is more than 90
-              return res.status(200).json({
-                message: "Login time and PC identifier updated successfully. Please verify OTP.",
-                phone,
-                userWinID,
-                user: user.uid,
-              });
-            } else {
-              // only pcIdentifier is not matching
-              return res.status(200).json({
-                message: "PC identifier updated successfully. Please verify OTP.",
-                phone,
-                userWinID,
-                user: user.uid,
-              });
-            }
+          // console.log();
+
+          if (lastLoginTime !== undefined && lastLoginTime !== null && userWinID === lastPcIdentifier && timeDifference < 90) {
+            // No updates needed, user is already authenticated
+            console.log("No updates needed, user is already authenticated");
+            return res.status(200).json({ message: "User authenticated successfully", user: user.uid });
           } else {
-            if (timeDifference > 90 || timeDifference === null) {
-              // pcIdentifier is matching and time difference is more than 90
-              return res.status(200).json({
-                message: "Login time updated successfully. Please verify OTP.",
-                phone,
-                userWinID,
-                user: user.uid,
-              });
-            } else {
-              // pcIdentifier is matching and time difference is less than 90
-              console.log("No updates needed, user is already authenticated");
-              return res.status(200).json({
-                message: "User authenticated successfully",
-                phone,
-                user: user.uid,
-                userWinID,
-              });
-            }
+            // Update login time and pcIdentifier in the database
+            console.log("Updating loginTime and pcIdentifier in DB");
+            return res.status(206).json({ message: "Please verify OTP to complete login.", config: firebaseConfig, phone: phone, user: user.uid });
           }
         } catch (error) {
           console.error("Error during authentication:", error.message);
@@ -142,8 +116,8 @@ export const checker = async (req, res) => {
 
   try {
     console.log("AuthChecker Body", req.body);
-    onAuthStateChanged(auth, (authUser) => {
-      console.log("authuser", authUser?.uid);
+    await onAuthStateChanged(auth, (authUser) => {
+      // console.log("authuser", authUser);
 
       if (authUser?.uid === req.body.useruid) {
         console.log("Valid user");
@@ -158,10 +132,9 @@ export const checker = async (req, res) => {
   } catch (error) {
     console.log("Authcher error", error);
     return res.status(401).json({ message: "Falied to Authenicate" });
-  } finally {
-    console.log("======== Auth Checker Ends =======");
-    console.log("\n\n");
   }
+  console.log("======== Auth Checker Ends =======");
+  console.log("\n\n");
 };
 
 /**
@@ -176,64 +149,48 @@ export const checker = async (req, res) => {
  * @returns response object with status and message
  */
 export const verifyOtp = async (req, res) => {
-  console.log("Verify OTP request body:", req.body);
+  console.log("\n\n");
+  console.log("======== Verify OTP Starts =======");
+  try {
+    console.log("Verify OTP request body:", req.body);
 
-  const { userUID, userWinID } = req.body;
-  if (!userUID || !userWinID) return res.status(400).json({ message: "Missing parameters" });
-  const dbRef = ref(database);
-  const snapshotData = await get(child(dbRef, `op_head/${userUID}`));
+    const { userUID, userWinID } = req.body;
+    if (!userUID || !userWinID) return res.status(400).json({ message: "Missing parameters" });
+    const dbRef = ref(database);
+    const snapshotData = await get(child(dbRef, `op_head/${userUID}`));
 
-  if (!snapshotData.exists()) return res.status(404).json({ message: "User not found" });
+    if (!snapshotData.exists()) return res.status(404).json({ message: "User not found" });
 
-  const userData = snapshotData.val();
-  console.log("User data:", userData);
-  const currentTime = new Date().toISOString();
-  const lastLoginTime = userData.loginDetails.loginTime;
+    // const userData = snapshotData.val();
+    // console.log("User data:", userData);
+    const currentTime = new Date().toISOString();
+    // const lastLoginTime = userData?.loginDetails?.loginTime || null;
+    // const lastPcIdentifier = userData?.loginDetails?.pcIdentifier || null;
 
-  console.log("Current time:", currentTime);
-  console.log("Last login time:", lastLoginTime);
-  const timeDifference = lastLoginTime ? (new Date(currentTime) - new Date(lastLoginTime)) / (1000 * 60 * 60 * 24) : null;
-  console.log("timeDifference in days:", timeDifference);
+    // console.log("Current time:", currentTime);
+    // console.log("Last login time:", lastLoginTime);
+    // const timeDifference = lastLoginTime ? (new Date(currentTime) - new Date(lastLoginTime)) / (1000 * 60 * 60 * 24) : null;
+    // console.log("timeDifference in days:", timeDifference);
 
-  if (userWinID !== userData.loginDetails.pcIdentifier || userData.loginDetails.pcIdentifier === null) {
-    if (timeDifference > 90 || timeDifference === null) {
+    if (userWinID !== null) {
       // both pcIdentifier are not matching and time difference is more than 90
       console.log("Updating both loginTime and pcIdentifier in DB");
 
-      await update(ref(database, `op_head/${userUID}/loginDetails`), {
-        loginTime: currentTime,
-        pcIdentifier: userWinID,
-      });
-      return res.status(200).json({
-        message: "Update Successful.",
-      });
-    } else {
-      // only pcIdentifier is not matching
-      console.log("Updating pcIdentifier in DB");
-
-      await update(ref(database, `op_head/${userUID}/loginDetails`), {
-        pcIdentifier: userWinID,
-      });
-      return res.status(200).json({
-        message: "Update Successful.",
-      });
+      try {
+        await update(ref(database, `op_head/${userUID}/loginDetails`), {
+          loginTime: currentTime,
+          pcIdentifier: userWinID,
+        });
+        return res.status(200).json({
+          message: "Update Successful.",
+        });
+      } catch (error) {
+        console.error("Error updating login details:", error.message);
+        return res.status(500).json({ message: "Failed to update login details", error: error.message });
+      }
     }
-  } else {
-    if (timeDifference > 90 || timeDifference === null) {
-      // pcIdentifier is matching and time difference is more than 90
-      console.log("Updating loginTime in DB");
-      await update(ref(database, `op_head/${userUID}/loginDetails`), {
-        loginTime: currentTime,
-      });
-      return res.status(200).json({
-        message: "Update Successful.",
-      });
-    } else {
-      // pcIdentifier is matching and time difference is less than 90
-      console.log("No updates needed, user is already authenticated");
-      return res.status(200).json({
-        message: "Update Successful.",
-      });
-    }
+  } catch (error) {
+    console.error("Error during OTP verification:", error.message);
+    return res.status(500).json({ message: "OTP verification failed", error: error.message });
   }
 };

@@ -58,19 +58,13 @@ export default async function verifyFirebaseOtp(
         console.log("User signed in successfully:", response.user);
         toast.success("OTP verified successfully. You are now logged in.");
         // Save user details to localStorage if "Remember Me" is checked
-        if (isRememberMe) {
-          localStorage.setItem("userEmail", userEmail);
-          localStorage.setItem("userPassword", userPassword);
-          localStorage.setItem("isRememberMe", "true");
-        } else {
-          localStorage.removeItem("userEmail");
-          localStorage.removeItem("userPassword");
-          localStorage.removeItem("isRememberMe");
-        }
+
         // Navigate to the home page or dashboard
         localStorage.removeItem("_grecaptcha");
         localStorage.setItem("winID", userWinID);
         navigate("/home");
+      } else {
+        toast.error("OTP verification failed on server. Please try again.");
       }
     }
   } catch (error) {

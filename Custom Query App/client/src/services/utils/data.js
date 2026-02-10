@@ -84,7 +84,7 @@ const data = [
       "K/C/O Cancer",
     ],
     options: {
-      "Coverage Status": ["Covered in Phase 1", "Not Covered in Phase 1", "Covered in Phase 2", "Not Covered in Phase 2"],
+      "Coverage Status": ["Covered in Phase 1", "Not Covered in Phase 1", "Covered in Phase 2", "Not Covered in Phase 2", "Covered in Phase 3", "Not Covered in Phase 3"],
       "ID Proof Type": ["Aadhar", "Ration Card", "Voters ID", "Not available"],
       "Number of family members": "",
       Status: ["In Person", "Absent"],
@@ -247,7 +247,7 @@ const data = [
       "Recommendation",
     ],
     options: {
-      "Coverage Status": ["Covered in Phase 1", "Not Covered in Phase 1", "Covered in Phase 2", "Not Covered in Phase 2"],
+      "Coverage Status": ["Covered in Phase 1", "Not Covered in Phase 1", "Covered in Phase 2", "Not Covered in Phase 2", "Covered in Phase 3", "Not Covered in Phase 3"],
       "Heart Rate": numberStrings(40, 200),
       SPO2: numberStrings(40, 100),
       "BP/SBP": "",
@@ -516,7 +516,7 @@ const data = [
       "Counselling Techniques",
     ],
     options: {
-      "Coverage Status": ["Covered in Phase 1", "Not Covered in Phase 1", "Covered in Phase 2", "Not Covered in Phase 2"],
+      "Coverage Status": ["Covered in Phase 1", "Not Covered in Phase 1", "Covered in Phase 2", "Not Covered in Phase 2", "Covered in Phase 3", "Not Covered in Phase 3"],
       "Amount spent on tobacco per day": "",
       "Types of tobacco consumption": [
         "Smoked tobacco - beedi, cigarettes",

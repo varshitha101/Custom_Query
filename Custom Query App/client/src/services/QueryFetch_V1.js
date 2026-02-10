@@ -24,7 +24,7 @@ export default async function handleQueryFetch(expression, expressionString, set
 
     // Add timeout to the fetch request
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 seconds timeout  
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 seconds timeout
 
     const response = await fetch(`${import.meta.env.VITE_BASE_SERVER_URL}/query/fetch/V1`, {
       method: "POST",
@@ -110,7 +110,9 @@ export default async function handleQueryFetch(expression, expressionString, set
                 });
               }
               // --- FLATTENING LOGIC STARTS HERE ---
-              const TIMESTAMP_CUTOFF = 1704047400;
+              const TIMESTAMP_CUTOFF_1 = 1704047400;
+              const TIMESTAMP_CUTOFF_2 = 1770532200;
+
               const FORM_KEYS = ["Form_1", "manual_vital_data", "Form_3", "tcc_form", "profile_history1"];
 
               function isNotEmpty(obj) {
@@ -120,27 +122,34 @@ export default async function handleQueryFetch(expression, expressionString, set
               function splitRowByTimestamp(row) {
                 const ph1Row = { Form_1: {}, manual_vital_data: {}, Form_3: {}, tcc_form: {}, patients1: {} };
                 const ph2Row = { Form_1: {}, manual_vital_data: {}, Form_3: {}, tcc_form: {}, patients1: {} };
+                const ph3Row = { Form_1: {}, manual_vital_data: {}, Form_3: {}, tcc_form: {}, patients1: {} };
 
                 FORM_KEYS.forEach((formKey) => {
                   if (row[formKey]) {
                     if (formKey === "profile_history1") {
                       // Special handling for profile_history1
-                      Object.entries(row[formKey]).forEach(([ts, value]) => {
+                      Object.entries(row[formKey]).forEach(([timestamp, value]) => {
                         if (!isNotEmpty(value)) return;
-                        if (Number(ts) <= TIMESTAMP_CUTOFF) {
+                        const ts = Number(timestamp);
+                        if (ts <= TIMESTAMP_CUTOFF_1) {
                           // Use profile_history1 data for Phase 1
                           ph1Row.patients1 = value;
-                        } else {
+                        } else if (ts > TIMESTAMP_CUTOFF_1 && ts <= TIMESTAMP_CUTOFF_2) {
                           // Use profile_history1 data for Phase 2
                           ph2Row.patients1 = value;
+                        } else if (ts > TIMESTAMP_CUTOFF_2) {
+                          ph3Row.patients1 = value;
                         }
                       });
                     } else {
-                      Object.entries(row[formKey]).forEach(([ts, value]) => {
-                        if (Number(ts) <= TIMESTAMP_CUTOFF) {
+                      Object.entries(row[formKey]).forEach(([timestamp, value]) => {
+                        const ts = Number(timestamp);
+                        if (ts <= TIMESTAMP_CUTOFF_1) {
                           ph1Row[formKey][ts] = value;
-                        } else {
+                        } else if (ts > TIMESTAMP_CUTOFF_1 && ts <= TIMESTAMP_CUTOFF_2) {
                           ph2Row[formKey][ts] = value;
+                        } else if (ts > TIMESTAMP_CUTOFF_2) {
+                          ph3Row[formKey][ts] = value;
                         }
                       });
                     }
@@ -154,6 +163,9 @@ export default async function handleQueryFetch(expression, expressionString, set
                 if (!isNotEmpty(ph2Row.patients1)) {
                   ph2Row.patients1 = row.patients1 || {};
                 }
+                if (!isNotEmpty(ph3Row.patients1)) {
+                  ph3Row.patients1 = row.patients1 || {};
+                }
 
                 const result = [];
                 if (isNotEmpty(ph1Row.Form_1) || isNotEmpty(ph1Row.manual_vital_data) || isNotEmpty(ph1Row.Form_3) || isNotEmpty(ph1Row.tcc_form)) {
@@ -161,6 +173,9 @@ export default async function handleQueryFetch(expression, expressionString, set
                 }
                 if (isNotEmpty(ph2Row.Form_1) || isNotEmpty(ph2Row.manual_vital_data) || isNotEmpty(ph2Row.Form_3) || isNotEmpty(ph2Row.tcc_form)) {
                   result.push(ph2Row);
+                }
+                if (isNotEmpty(ph3Row.Form_1) || isNotEmpty(ph3Row.manual_vital_data) || isNotEmpty(ph3Row.Form_3) || isNotEmpty(ph3Row.tcc_form)) {
+                  result.push(ph3Row);
                 }
                 return result;
               }
@@ -175,10 +190,10 @@ export default async function handleQueryFetch(expression, expressionString, set
                 //const allTimestamps = DEPENDENT_KEYS.flatMap((formKey) => (row[formKey] && typeof row[formKey] === "object" ? Object.keys(row[formKey]) : []));
                 const allTimestamps = row.Form_1 && typeof row.Form_1 === "object" ? Object.keys(row.Form_1) : [];
 
-                // const hasOldTimestamp = Array.from(allTimestamps).some((ts) => Number(ts) <= TIMESTAMP_CUTOFF);
-                const hasTwoTimestamp = Array.isArray(allTimestamps) && allTimestamps.length > 1;
+                // const hasOldTimestamp = Array.from(allTimestamps).some((ts) => Number(ts) <= TIMESTAMP_CUTOFF_1);
+                const hasTwoOrMoreTimestamp = Array.isArray(allTimestamps) && allTimestamps.length > 1;
 
-                if (!hasTwoTimestamp) {
+                if (!hasTwoOrMoreTimestamp) {
                   flattenedRows.push(row);
                 } else {
                   countTemp++;
@@ -1148,7 +1163,8 @@ export default async function handleQueryFetch(expression, expressionString, set
                     Panchayath: row.patients1.pcht_n || "",
                     "Individual Unique ID ": row.patients1.pid || "",
                     Name: row.patients1.name || "",
-                    UUID: row.patients1.uid || "",
+                    // UUID: row.patients1.uid || "",
+                    // "Field Worker Id": row.patients1.fw_id || "",
                     "ID Proof Type": mapping(row.patients1.idprftype) || "",
                     "ID Proof Number": row.patients1.idprfno || "",
                     "Number of family members": row.patients1.no_fm || "",
