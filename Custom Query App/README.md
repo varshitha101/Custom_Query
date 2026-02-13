@@ -82,33 +82,27 @@ OR
 ## Version Control Notes
 
 - **Version 0.10**:
-
   - Initial base version, stable and error-free.
 
 - **Version 0.11**:
-
   - Enabled the OTP feature.
   - Uncommented the session checker function.
   - Resolved an issue related to Gender in server/helper/option3Validator.js.
 
 - **Version 0.12**:
-
   - Changed multi-selection behavior from AND (when multiple options are selected, only patients with all of the selected values are displayed) to OR (when multiple options are selected, patients with any of the selected values are displayed).
 
 - **Version 0.13**:
-
   - Added options to select Phase 1 and Phase 2.
   - Added logic to select either Phase 1/2 options or a general date.
   - Allowed multiple Phase 1 and Phase 2 values to be selected.
   - Ensured that only one general date can be selected.
 
 - **Version 0.14**:
-
   - Added Yes/No options for Survey, Screening, and TCC.
   - Added logic to handle Yes/No options for Survey, Screening, and TCC.
 
 - **Version 0.15.2**:
-
   - Removed Yes/No options from Survey, Screening, and TCC and removed their logic from the backend.
   - Removed Phase 1 and Phase 2 options from General and removed their logic from the backend.
   - Added a Coverage Status option in Survey, Screening, and TCC and added logic to validate it.
@@ -119,5 +113,8 @@ OR
     4. Not Covered in Phase 2
 
 - **Version 0.15.3**:
-
   - Added the profile_history1 node to the backend and frontend so that data is processed from profile_history1 instead of patients1, and whenever there is no data in profile_history1, it falls back to patients1.
+
+- **Version 0.15.4**:
+  - Added Phase 3 option in UI
+  - Added Phase 3 logic in backend

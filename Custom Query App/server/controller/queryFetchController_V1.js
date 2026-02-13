@@ -1067,11 +1067,11 @@ async function validateData(data, expression, query, res, options = {}) {
               } else if (selectedOption3 === "Covered in Phase 3") {
                 conditionMap[label] = Form1_hasPhase3;
               } else if (selectedOption3 === "Not Covered in Phase 1") {
-                conditionMap[label] = !Form1_hasPhase1 && Form1_hasPhase2 && Form1_hasPhase3;
+                conditionMap[label] = !Form1_hasPhase1;
               } else if (selectedOption3 === "Not Covered in Phase 2") {
-                conditionMap[label] = Form1_hasPhase1 && !Form1_hasPhase2 && Form1_hasPhase3;
+                conditionMap[label] = !Form1_hasPhase2;
               } else if (selectedOption3 === "Not Covered in Phase 3") {
-                conditionMap[label] = !Form1_hasPhase3 && Form1_hasPhase1 && Form1_hasPhase2;
+                conditionMap[label] = !Form1_hasPhase3;
               } else {
                 conditionMap[label] = false;
               }
@@ -1084,11 +1084,11 @@ async function validateData(data, expression, query, res, options = {}) {
               } else if (selectedOption3 === "Covered in Phase 3") {
                 conditionMap[label] = MVD_hasPhase3 && Form3_hasPhase3;
               } else if (selectedOption3 === "Not Covered in Phase 1") {
-                conditionMap[label] = !Form3_hasPhase1 && !MVD_hasPhase1 && Form3_hasPhase2 && MVD_hasPhase2 && Form3_hasPhase3 && MVD_hasPhase3;
+                conditionMap[label] = !Form3_hasPhase1 && !MVD_hasPhase1;
               } else if (selectedOption3 === "Not Covered in Phase 2") {
-                conditionMap[label] = Form3_hasPhase1 && MVD_hasPhase1 && !Form3_hasPhase2 && !MVD_hasPhase2 && Form3_hasPhase3 && MVD_hasPhase3;
+                conditionMap[label] = !Form3_hasPhase2 && !MVD_hasPhase2;
               } else if (selectedOption3 === "Not Covered in Phase 3") {
-                conditionMap[label] = Form3_hasPhase1 && MVD_hasPhase1 && Form3_hasPhase2 && MVD_hasPhase2 && !Form3_hasPhase3 && !MVD_hasPhase3;
+                conditionMap[label] = !Form3_hasPhase3 && !MVD_hasPhase3;
               } else {
                 conditionMap[label] = false;
               }
@@ -1101,11 +1101,11 @@ async function validateData(data, expression, query, res, options = {}) {
               } else if (selectedOption3 === "Covered in Phase 3") {
                 conditionMap[label] = TCC_hasPhase3;
               } else if (selectedOption3 === "Not Covered in Phase 1") {
-                conditionMap[label] = !TCC_hasPhase1 && TCC_hasPhase2 && TCC_hasPhase3;
+                conditionMap[label] = !TCC_hasPhase1;
               } else if (selectedOption3 === "Not Covered in Phase 2") {
-                conditionMap[label] = TCC_hasPhase1 && !TCC_hasPhase2 && TCC_hasPhase3;
+                conditionMap[label] = !TCC_hasPhase2;
               } else if (selectedOption3 === "Not Covered in Phase 3") {
-                conditionMap[label] = TCC_hasPhase1 && TCC_hasPhase2 && !TCC_hasPhase3;
+                conditionMap[label] = !TCC_hasPhase3;
               } else {
                 conditionMap[label] = false;
               }
