@@ -21,6 +21,8 @@ export default function option3Validator(field, expectedValue, dataInfo, source)
       data = safeDataInfo;
     }
 
+    if (!data || typeof data !== "object") return false;
+
     // Presence checks used across all sources.
     // In this app, "Yes" means data exists, "No" means data should not be there.
 
@@ -2119,7 +2121,7 @@ export default function option3Validator(field, expectedValue, dataInfo, source)
         }
         return false;
       } else if (field === "FNAC done when indicated") {
-        const actualValue = data[form3[field]];
+        const actualValue = data?.[form3[field]];
 
         if (expectedValue === "Yes") {
           expectedValue = "y";

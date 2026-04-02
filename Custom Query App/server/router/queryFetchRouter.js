@@ -1,6 +1,6 @@
 import { Router } from "express";
 import queryFetch_V1 from "../controller/queryFetchController_V1.js";
-import queryFetch_V2 from "../controller/queryFetchController_V2.js";
+// import queryFetch_V2 from "../controller/queryFetchController_V2.js";
 
 const router = Router();
 
@@ -11,6 +11,6 @@ const router = Router();
  * @returns {Object} Response object with status and message
  */
 router.post("/fetch/V1", queryFetch_V1);
-router.post("/fetch/V2", queryFetch_V2);
+// router.post("/fetch/V2", queryFetch_V2);
 
 export default router;

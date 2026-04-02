@@ -335,16 +335,16 @@ async function validateData(data, expression, query, res, options = {}) {
   // Determine priority order based on query structure and presence of specific selectors
   if (query.includes("AND")) {
     if (isTCCNo) {
-      priorityOrder = ["manual_vital_data", "Form_3", "Form_1", "profile_history1", "tcc_form"];
+      priorityOrder = ["manual_vital_data", "Form_3", "Form_1", "patients1", "tcc_form"];
     } else if (isScreeningNo) {
-      priorityOrder = ["Form_1", "profile_history1", "tcc_form", "manual_vital_data", "Form_3"];
+      priorityOrder = ["Form_1", "patients1", "tcc_form", "manual_vital_data", "Form_3"];
     } else if (isSurveyNo) {
-      priorityOrder = ["profile_history1", "tcc_form", "manual_vital_data", "Form_3", "Form_1"];
+      priorityOrder = ["patients1", "tcc_form", "manual_vital_data", "Form_3", "Form_1"];
     } else {
-      priorityOrder = ["tcc_form", "manual_vital_data", "Form_3", "Form_1", "profile_history1"];
+      priorityOrder = ["tcc_form", "manual_vital_data", "Form_3", "Form_1", "patients1"];
     }
   } else {
-    priorityOrder = ["profile_history1", "Form_1", "Form_3", "manual_vital_data", "tcc_form"];
+    priorityOrder = ["patients1", "Form_1", "Form_3", "manual_vital_data", "tcc_form"];
   }
 
   // Only one of date range or phase date can be present between selectors
@@ -355,6 +355,9 @@ async function validateData(data, expression, query, res, options = {}) {
   let isPhase3 = false;
 
   let isBetween = false;
+
+  let startData = null;
+  let lastDate = null;
 
   expression.forEach((item) => {
     if (item.type === "selector") {
@@ -367,16 +370,13 @@ async function validateData(data, expression, query, res, options = {}) {
       if (option4 === "general" && option2 === "Date") {
         isDateRangePresent = true;
         if (item.value?.selectedOption3?.SDate != null && item.value?.selectedOption3?.LDate != null) {
-          if (item.value?.selectedOption3?.SDate <= p2StartTime && item.value?.selectedOption3?.LDate <= p2StartTime) {
+          startData = item.value?.selectedOption3?.SDate;
+          lastDate = item.value?.selectedOption3?.LDate;
+          if (startData <= p2StartTime && lastDate <= p2StartTime) {
             isPhase1 = true;
-          } else if (
-            item.value?.selectedOption3?.SDate >= p2StartTime &&
-            item.value?.selectedOption3?.LDate >= p2StartTime &&
-            item.value?.selectedOption3?.SDate < p3StartTime &&
-            item.value?.selectedOption3?.LDate < p3StartTime
-          ) {
+          } else if (startData >= p2StartTime && lastDate >= p2StartTime && startData < p3StartTime && lastDate < p3StartTime) {
             isPhase2 = true;
-          } else if (item.value?.selectedOption3?.SDate >= p3StartTime && item.value?.selectedOption3?.LDate >= p3StartTime) {
+          } else if (startData >= p3StartTime && lastDate >= p3StartTime) {
             isPhase3 = true;
           } else {
             isBetween = true;
@@ -414,7 +414,7 @@ async function validateData(data, expression, query, res, options = {}) {
 
   let isDatePresent = isDateRangePresent || isPhaseDatePresent;
   // console.log("isDatePresent:", isDatePresent, " isDateRangePresent:", isDateRangePresent, " isPhaseDatePresent:", isPhaseDatePresent);
-  // console.log("isPhase1:", isPhase1, " isPhase2:", isPhase2, " isBetween:", isBetween);
+  // console.log("isPhase1:", isPhase1, " isPhase2:", isPhase2, " isPhase3:", isPhase3, " isBetween:", isBetween);
   let patients = null;
   let allUUIDsCount = 0;
 
@@ -475,7 +475,7 @@ async function validateData(data, expression, query, res, options = {}) {
         let Form1_ph1MaxTimestamp = null; // Using this variable for general when SDate and LDate are in phase 1
         let Form1_ph2MaxTimestamp = null; // Using this variable for general when SDate and LDate are in phase 2
         let Form1_ph3MaxTimestamp = null; // Using this variable for general when SDate and LDate are in phase 3
-        // let form1Timesatamp = [];
+        let form1Timesatamp = [];
 
         // Track per-node phase coverage based on timestamps
         // Using these flags when only Coverage Status is selected
@@ -640,6 +640,7 @@ async function validateData(data, expression, query, res, options = {}) {
                   }
                 } else if (isBetween) {
                   if (timestampKeys.length > 0) {
+                    form1Timesatamp = timestampKeys;
                     Form1_maxTimestamp = Math.max(...timestampKeys);
                     if (Form1_maxTimestamp !== -Infinity) {
                       form1Data[Form1_maxTimestamp] = form1CData[Form1_maxTimestamp];
@@ -1055,7 +1056,14 @@ async function validateData(data, expression, query, res, options = {}) {
             } else if (selectedOption4 === "general" && selectedOption2 === "Date" && isDatePresent && isPhase3 && hasPhase3) {
               // set true if date is present and in phase 3
               conditionMap[label] = true;
-            } else if (selectedOption4 === "general" && selectedOption2 === "Date" && isDatePresent && isBetween && Form1_maxTimestamp !== null) {
+            } else if (
+              selectedOption4 === "general" &&
+              selectedOption2 === "Date" &&
+              isDatePresent &&
+              isBetween &&
+              form1Timesatamp.length &&
+              form1Timesatamp.some((timestamp) => timestamp >= startData && timestamp <= lastDate)
+            ) {
               // set true if date is present and in between phases
               conditionMap[label] = true;
             } else if (selectedOption2 === "Coverage Status" && Array.isArray(selectedOption4) && selectedOption4.includes("patients1") && selectedOption4.includes("Form_1")) {
