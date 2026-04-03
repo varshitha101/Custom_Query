@@ -24,7 +24,7 @@ export default async function handleQueryFetch(expression, expressionString, set
 
     // Add timeout to the fetch request
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 seconds timeout
+    const timeoutId = setTimeout(() => controller.abort(), 10 * 60 * 1000); // Allow long-running streamed exports.
 
     const response = await fetch(`${import.meta.env.VITE_BASE_SERVER_URL}/query/fetch/V1`, {
       method: "POST",
@@ -43,6 +43,56 @@ export default async function handleQueryFetch(expression, expressionString, set
       toast.error(response.statusText);
       return;
     }
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Sheet 1");
+    const thinBorder = {
+      top: { style: "thin" },
+      left: { style: "thin" },
+      bottom: { style: "thin" },
+      right: { style: "thin" },
+    };
+    let headers = null;
+    let colWidths = [];
+    let hasExportRows = false;
+    let workbookFinalized = false;
+    let streamCompleted = false;
+    let excelStartTime = null;
+
+    const finalizeWorkbookDownload = async () => {
+      if (workbookFinalized) {
+        return;
+      }
+
+      workbookFinalized = true;
+
+      if (!hasExportRows || !headers) {
+        toast.error("No data available to export");
+        return;
+      }
+
+      worksheet.columns.forEach((col, idx) => {
+        col.width = (colWidths[idx] || 10) + 2;
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Sarvarakshana_${Math.floor(new Date().getTime() / 1000.0)}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success("Excel file generated successfully");
+
+      if (excelStartTime !== null) {
+        const endExcelTime = performance.now();
+        console.log("Excel generation time:", endExcelTime - excelStartTime, "ms");
+      }
+    };
+
     const reader = response.body.getReader();
     const decoder = new TextDecoder("utf-8");
     let buffer = "";
@@ -62,18 +112,24 @@ export default async function handleQueryFetch(expression, expressionString, set
 
           const parsed = JSON.parse(line);
           try {
-            if (parsed.processed !== undefined) {
+            console.log("PARSED:", parsed);
+            if (parsed.error) {
+              throw new Error(parsed.message || "Server error while streaming data");
+            } else if (parsed.processed !== undefined) {
               processed = parsed.processed;
               setRecivedLength(processed);
               setIsReciving(true);
-            } else if (parsed.fetching !== undefined) {
+            } else if (parsed.fetching !== undefined && parsed.fetching !== "undefined") {
               setProcessingNode(parsed.fetching);
-            } else if (parsed.data) {
+            } else if (parsed.rows || parsed.data) {
               setProcessingNode("");
               setIsReciving(false);
-              const startExcelTime = performance.now();
-              let excelResponse = parsed.data;
-              console.log("Received data chunk:", excelResponse);
+              if (excelStartTime === null) {
+                excelStartTime = performance.now();
+              }
+
+              let excelResponse = parsed.rows ?? parsed.data;
+              console.log("Received data chunk length:", Array.isArray(excelResponse) ? excelResponse.length : 0);
 
               if (!excelResponse) {
                 console.error("Empty response from server");
@@ -86,9 +142,7 @@ export default async function handleQueryFetch(expression, expressionString, set
                 return;
               }
               if (excelResponse.length === 0) {
-                console.log("No data found for the given query.");
-                toast.error("No data found for the given query.");
-                return;
+                continue;
               }
               const originalCount = excelResponse.length;
               // Keep only rows where patients1 and Form_1 exist and are not empty.
@@ -1413,78 +1467,56 @@ export default async function handleQueryFetch(expression, expressionString, set
                   };
                 });
 
-                // 1. Create workbook and worksheet
-                const workbook = new ExcelJS.Workbook();
-                const worksheet = workbook.addWorksheet("Sheet 1");
+                const chunkHeaders = Object.keys(excelData[0] || {});
 
-                // 2. Prepare headers and data
-                const headers = Object.keys(excelData[0] || {});
-                const allRows = [headers, ...excelData.map((row) => headers.map((h) => row[h]))];
+                if (!headers && chunkHeaders.length > 0) {
+                  headers = chunkHeaders;
+                  colWidths = headers.map((header) => header.length);
 
-                // 3. Track max column width
-                const colWidths = headers.map((h) => h.length);
+                  const headerRow = worksheet.addRow(headers);
+                  headers.forEach((_, colIdx) => {
+                    const cell = headerRow.getCell(colIdx + 1);
+                    cell.font = { bold: true };
+                    cell.border = thinBorder;
+                  });
+                }
 
-                // 4. Add rows and style in one loop
-                allRows.forEach((rowArr, rowIdx) => {
-                  const row = worksheet.addRow(rowArr);
+                if (!headers) {
+                  continue;
+                }
 
-                  rowArr.forEach((cellValue, colIdx) => {
+                excelData.forEach((rowData) => {
+                  hasExportRows = true;
+                  const rowValues = headers.map((header) => rowData[header]);
+                  const row = worksheet.addRow(rowValues);
+
+                  rowValues.forEach((cellValue, colIdx) => {
                     const cell = row.getCell(colIdx + 1);
-
-                    // Update max column width
                     const cellStr = cellValue ? cellValue.toString() : "";
                     if (cellStr.length > colWidths[colIdx]) colWidths[colIdx] = cellStr.length;
-
-                    // Make header row bold
-                    if (rowIdx === 0) {
-                      cell.font = { bold: true };
-                    }
-
-                    // Example: Add double border to all cells
-                    cell.border = {
-                      top: { style: "thin" },
-                      left: { style: "thin" },
-                      bottom: { style: "thin" },
-                      right: { style: "thin" },
-                    };
+                    cell.border = thinBorder;
                   });
                 });
-
-                // 5. Set column widths
-                worksheet.columns.forEach((col, idx) => {
-                  col.width = colWidths[idx] + 2;
-                });
-
-                // 6. Trigger the download (browser)
-                workbook.xlsx.writeBuffer().then((buffer) => {
-                  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-                  const url = window.URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-
-                  a.download = `Sarvarakshana_${Math.floor(new Date().getTime() / 1000.0)}.xlsx`;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  window.URL.revokeObjectURL(url);
-                  toast.success("Excel file generated successfully");
-                });
-              } else {
-                toast.error("No data available to export");
               }
-
-              const endExcelTime = performance.now();
-              console.log("Excel generation time:", endExcelTime - startExcelTime, "ms");
+            } else if (parsed.complete) {
+              setProcessingNode("");
+              setIsReciving(false);
+              streamCompleted = true;
+              await finalizeWorkbookDownload();
             }
           } catch (parseError) {
-            console.error("Error parsing response:", parseError);
-            continue;
+            console.error("Error processing streamed response:", parseError);
+            throw parseError;
           }
         }
       } catch (readError) {
         console.error("Error reading stream:", readError);
-        toast.error("Error while sending data to the server");
+        throw readError;
       }
+    }
+
+    if (!streamCompleted && hasExportRows) {
+      await finalizeWorkbookDownload();
     }
   } catch (error) {
     console.error("QueryFetch error:", error);
