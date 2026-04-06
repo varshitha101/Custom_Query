@@ -1008,6 +1008,7 @@ const data = [
         { name: "Nayindra Colony", id: "28325" },
         { name: "Nayindrahalli", id: "28319" },
         { name: "Peramachanahalli", id: "28317" },
+        { name: "Sriramapura", id: "28444" },
         { name: "Venkatapura(Peramachanahalli)", id: "28320" },
         { name: "S Raguttahalli ", id: "29327" },
         { name: "Kariyapalli(S Raguttahalli)", id: "29328" },
