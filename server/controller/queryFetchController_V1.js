@@ -7,6 +7,7 @@ import util from "util";
 const p2StartTime = 1704047400;
 const p3StartTime = 1770532200;
 const ROOT_NODE_FETCH_CONCURRENCY = 2;
+const ROOT_NODE_TO_UUID_FETCH_CONCURRENCY = 250;
 const UUID_BATCH_SIZE = 500;
 const UUID_PROCESS_CONCURRENCY = 25;
 const RESULT_STREAM_CHUNK_SIZE = 50;
@@ -98,7 +99,6 @@ async function fetchNodeUUIDs(path) {
     const response = await fetch(buildDatabaseRestUrl(path, { shallow: true }), {
       headers: { Accept: "application/json" },
     });
-
     if (!response.ok) {
       throw new Error(`shallow fetch failed with status ${response.status}`);
     }
@@ -209,53 +209,52 @@ async function getData(expression, res) {
 
     const { SDate, LDate } = getStartLastDate(isPhase1, isPhase2, isPhase3, isBetween);
 
-    for (const node of requiredNodes) {
-      if (!patientData[node]) {
-        patientData[node] = {};
-      }
+    await Promise.all(
+      requiredNodes.map(async (node) => {
+        if (!patientData[node]) {
+          patientData[node] = {};
+        }
 
-      await writeStreamMessage(res, { fetching: node });
+        await writeStreamMessage(res, { fetching: node });
 
-      for (const villId of villages) {
-        const panId = villId.slice(0, 2);
-        const uuids = await fetchNodeUUIDs(`${node}/${panId}/${villId}`);
+        await Promise.all(
+          villages.map(async (villId) => {
+            const panId = villId.slice(0, 2);
+            const uuids = await fetchNodeUUIDs(`${node}/${panId}/${villId}`);
 
-        if (!Array.isArray(uuids) || uuids.length === 0) continue;
+            if (!Array.isArray(uuids) || uuids.length === 0) return;
 
-        console.log(`Processing node: ${node}, village: ${villId}, PAN: ${panId}, uuids: ${uuids}`);
+            await Promise.all(
+              uuids.map(async (uuid) => {
+                const tsRef = ref(database, `${node}/${panId}/${villId}/${uuid}`);
 
-        await mapWithConcurrency(uuids, ROOT_NODE_FETCH_CONCURRENCY, async (uuid) => {
-          const tsRef = ref(database, `${node}/${panId}/${villId}/${uuid}`);
+                let queryRef;
 
-          let queryRef;
+                if (SDate != null && LDate != null) {
+                  queryRef = query(tsRef, orderByKey(), startAt(String(SDate)), endAt(String(LDate)));
+                } else if (SDate != null) {
+                  queryRef = query(tsRef, orderByKey(), startAt(String(SDate)));
+                } else if (LDate != null) {
+                  queryRef = query(tsRef, orderByKey(), endAt(String(LDate)));
+                } else {
+                  queryRef = query(tsRef, orderByKey());
+                }
 
-          if (SDate != null && LDate != null) {
-            queryRef = query(tsRef, orderByKey(), startAt(String(SDate)), endAt(String(LDate)));
-          } else if (SDate != null) {
-            queryRef = query(tsRef, orderByKey(), startAt(String(SDate)));
-          } else if (LDate != null) {
-            queryRef = query(tsRef, orderByKey(), endAt(String(LDate)));
-          } else {
-            queryRef = query(tsRef, orderByKey());
-          }
+                const tsSnap = await get(queryRef);
 
-          const tsSnap = await get(queryRef);
+                if (tsSnap?.exists()) {
+                  patientData[node] ??= {};
+                  patientData[node][panId] ??= {};
+                  patientData[node][panId][villId] ??= {};
 
-          // UUID has at least one timestamp in range
-          if (tsSnap && tsSnap.exists()) {
-            if (!patientData[node][panId]) {
-              patientData[node][panId] = {};
-            }
-
-            if (!patientData[node][panId][villId]) {
-              patientData[node][panId][villId] = {};
-            }
-
-            patientData[node][panId][villId][uuid] = tsSnap.val();
-          }
-        });
-      }
-    }
+                  patientData[node][panId][villId][uuid] = tsSnap.val();
+                }
+              }),
+            );
+          }),
+        );
+      }),
+    );
   } else {
     const snapshots = {};
     // Fetch all required nodes in parallel
@@ -305,7 +304,7 @@ export default async function queryFetch_V1(req, res) {
     }
 
     const patientData = await getData(expression, res);
-
+    console.log("Patient Data Keys:", Object.keys(patientData));
     // If the query is structured as top-level parenthesis groups joined by AND,
     // evaluate each group independently and intersect results.
     // This prevents Phase-1/Phase-2 data from being combined before evaluation.
