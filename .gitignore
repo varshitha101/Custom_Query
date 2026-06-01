@@ -1,10 +1,9 @@
-node_modules
-.env
-
-Custom Query App/node_modules
-Custom Query App/client/node_modules
-Custom Query App/client/.env
-Custom Query App/server/node_modules
-Custom Query App/server/.env
-Custom Query App/log_1756402472.txt
-
+# . folder
+/node_modules/
+# client folder
+client/node_modules/
+client/dist
+client/.env
+# server folder
+server/node_modules/
+server/.env
