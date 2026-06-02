@@ -125,3 +125,6 @@ OR
 
 - **Version 0.15.7**:
   - Added new village Sriramapura(ID: 28444)
+
+- **Version 0.15.8**:
+  - Added Q1 question as Panchayat and can be selected upto 5 only.
