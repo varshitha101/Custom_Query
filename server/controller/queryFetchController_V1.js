@@ -1,5 +1,5 @@
-import { database, firebaseConfig } from "../db/config.js";
-import { ref, child, get, query, orderByKey, startAt, endAt } from "firebase/database";
+import { database } from "../db/config.js";
+import { ref, child, get } from "firebase/database";
 import option3Validator from "../utils/option3Validator.js";
 import { once } from "events";
 import util from "util";
@@ -7,12 +7,10 @@ import util from "util";
 const p2StartTime = 1704047400;
 const p3StartTime = 1770532200;
 const ROOT_NODE_FETCH_CONCURRENCY = 2;
-const ROOT_NODE_TO_UUID_FETCH_CONCURRENCY = 250;
 const UUID_BATCH_SIZE = 500;
-const UUID_PROCESS_CONCURRENCY = 25;
+const UUID_PROCESS_CONCURRENCY = 500;
 const RESULT_STREAM_CHUNK_SIZE = 50;
 const PROGRESS_UPDATE_EVERY = 25;
-const dbRef = ref(database);
 
 class QueryFetchError extends Error {
   constructor(message, status = 400) {
@@ -70,208 +68,6 @@ async function mapWithConcurrency(items, concurrency, mapper) {
   return results;
 }
 
-function buildDatabaseRestUrl(path, params = {}) {
-  const baseUrl = firebaseConfig.databaseURL?.replace(/\/$/, "");
-
-  if (!baseUrl) {
-    throw new QueryFetchError("Firebase databaseURL is not configured", 500);
-  }
-
-  const normalizedPath = String(path)
-    .split("/")
-    .filter(Boolean)
-    .map((segment) => encodeURIComponent(segment))
-    .join("/");
-
-  const url = new URL(`${baseUrl}/${normalizedPath}.json`);
-
-  Object.entries(params).forEach(([key, value]) => {
-    if (value != null) {
-      url.searchParams.set(key, String(value));
-    }
-  });
-
-  return url.toString();
-}
-
-async function fetchNodeUUIDs(path) {
-  try {
-    const response = await fetch(buildDatabaseRestUrl(path, { shallow: true }), {
-      headers: { Accept: "application/json" },
-    });
-    if (!response.ok) {
-      throw new Error(`shallow fetch failed with status ${response.status}`);
-    }
-
-    const payload = await response.json();
-    return payload && typeof payload === "object" ? Object.keys(payload) : [];
-  } catch (error) {
-    console.warn(`[QueryFetch_V1] Falling back to SDK fetch for UUID discovery at ${path}:`, error.message);
-    const snapshot = await get(child(dbRef, path));
-    return snapshot.exists() ? Object.keys(snapshot.val() || {}) : [];
-  }
-}
-
-function getStartLastDate(isPhase1, isPhase2, isPhase3, isBetween) {
-  let SDate = null,
-    LDate = null;
-  if (isBetween || (isPhase1 && isPhase2 && isPhase3) || (isPhase1 && !isPhase2 && isPhase3)) return { SDate, LDate };
-
-  if (isPhase1 && !isPhase2 && !isPhase3) return { SDate: null, LDate: p2StartTime };
-  else if (!isPhase1 && isPhase2 && !isPhase3) return { SDate: p2StartTime, LDate: p3StartTime };
-  else if (!isPhase1 && !isPhase2 && isPhase3) return { SDate: p3StartTime, LDate: null };
-  else if (isPhase1 && isPhase2 && !isPhase3) return { SDate: null, LDate: p3StartTime };
-  else if (!isPhase1 && isPhase2 && isPhase3) return { SDate: p2StartTime, LDate: null };
-  else if (isPhase1 && !isPhase2 && isPhase3) return { SDate: null, LDate: null };
-
-  return { SDate, LDate };
-}
-async function getData(expression, res) {
-  let SDate = null;
-  let LDate = null;
-  let isDate = false;
-  let isPhase1 = null,
-    isPhase2 = null,
-    isPhase3 = null,
-    isBetween = null;
-  const patientData = {};
-
-  expression.forEach((item) => {
-    if (item.type === "selector") {
-      const option1 = item.value?.selectedOption1;
-      const option2 = item.value?.selectedOption2;
-      const option3 = item.value?.selectedOption3;
-      const option4 = item.value?.selectedOption4;
-
-      // Check for general Date range selector
-      if (option4 === "general" && option2 === "Date") {
-        isDate = true;
-        if (item.value?.selectedOption3?.SDate != null && item.value?.selectedOption3?.LDate != null) {
-          const startData = item.value?.selectedOption3?.SDate;
-          const lastDate = item.value?.selectedOption3?.LDate;
-          if (startData <= p2StartTime && lastDate <= p2StartTime) {
-            isPhase1 = true;
-          } else if (startData >= p2StartTime && lastDate >= p2StartTime && startData < p3StartTime && lastDate < p3StartTime) {
-            isPhase2 = true;
-          } else if (startData >= p3StartTime && lastDate >= p3StartTime) {
-            isPhase3 = true;
-          } else {
-            isBetween = true;
-          }
-        }
-      }
-
-      // Check for Coverage Status phase date selector
-      if ((option1 === "Survey" || option1 === "Screening" || option1 === "TCC") && option2 === "Coverage Status") {
-        isDate = true;
-        if (option3 === "Covered in Phase 1") {
-          isPhase1 = true;
-        } else if (option3 === "Not Covered in Phase 1") {
-          isPhase2 = true;
-          isPhase3 = true;
-        } else if (option3 === "Covered in Phase 2") {
-          isPhase2 = true;
-        } else if (option3 === "Not Covered in Phase 2") {
-          isPhase1 = true;
-          isPhase3 = true;
-        } else if (option3 === "Covered in Phase 3") {
-          isPhase3 = true;
-        } else if (option3 === "Not Covered in Phase 3") {
-          isPhase1 = true;
-          isPhase2 = true;
-        }
-      }
-    }
-  });
-
-  // get all required nodes from expression
-  const requiredNodes = Array.from(
-    new Set(
-      expression
-        .filter((item) => item.type === "selector" && item.value && item.value.selectedOption4)
-        .flatMap((item) => (Array.isArray(item.value.selectedOption4) ? item.value.selectedOption4 : [item.value.selectedOption4]))
-        .filter(Boolean),
-    ),
-  );
-
-  // Ensure Form_1 is included if general Date or Coverage Status is used
-  if (expression.some((item) => item.type === "selector" && (item.value?.selectedOption4 === "general" || item.value?.selectedOption2 === "Coverage Status")) && !requiredNodes.includes("Form_1")) {
-    requiredNodes.push("Form_1");
-  }
-  // Ensure profile_history1 is included if patients1 is required
-  if (requiredNodes.includes("patients1") && !requiredNodes.includes("profile_history1")) {
-    requiredNodes.push("profile_history1");
-  }
-  console.log("Required Nodes:", requiredNodes);
-  if (isDate) {
-    const snapVillages = await get(child(dbRef, "villages"));
-    const villages = snapVillages.exists() ? Object.keys(snapVillages.val()) : [];
-
-    const { SDate, LDate } = getStartLastDate(isPhase1, isPhase2, isPhase3, isBetween);
-
-    await Promise.all(
-      requiredNodes.map(async (node) => {
-        if (!patientData[node]) {
-          patientData[node] = {};
-        }
-
-        await writeStreamMessage(res, { fetching: node });
-
-        await Promise.all(
-          villages.map(async (villId) => {
-            const panId = villId.slice(0, 2);
-            const uuids = await fetchNodeUUIDs(`${node}/${panId}/${villId}`);
-
-            if (!Array.isArray(uuids) || uuids.length === 0) return;
-
-            await Promise.all(
-              uuids.map(async (uuid) => {
-                const tsRef = ref(database, `${node}/${panId}/${villId}/${uuid}`);
-
-                let queryRef;
-
-                if (SDate != null && LDate != null) {
-                  queryRef = query(tsRef, orderByKey(), startAt(String(SDate)), endAt(String(LDate)));
-                } else if (SDate != null) {
-                  queryRef = query(tsRef, orderByKey(), startAt(String(SDate)));
-                } else if (LDate != null) {
-                  queryRef = query(tsRef, orderByKey(), endAt(String(LDate)));
-                } else {
-                  queryRef = query(tsRef, orderByKey());
-                }
-
-                const tsSnap = await get(queryRef);
-
-                if (tsSnap?.exists()) {
-                  patientData[node] ??= {};
-                  patientData[node][panId] ??= {};
-                  patientData[node][panId][villId] ??= {};
-
-                  patientData[node][panId][villId][uuid] = tsSnap.val();
-                }
-              }),
-            );
-          }),
-        );
-      }),
-    );
-  } else {
-    const snapshots = {};
-    // Fetch all required nodes in parallel
-    await mapWithConcurrency(requiredNodes, ROOT_NODE_FETCH_CONCURRENCY, async (node) => {
-      snapshots[node] = await get(child(dbRef, `${node}/`));
-      await writeStreamMessage(res, { fetching: node });
-    });
-
-    for (const key in snapshots) {
-      if (snapshots[key].exists()) {
-        patientData[key] = snapshots[key].val();
-      }
-    }
-  }
-  return patientData;
-}
-
 /**
  * Fetches patient data based on the provided expression and expressionString.
  * It retrieves data from the Firebase Realtime Database for the specified nodes
@@ -294,6 +90,8 @@ export default async function queryFetch_V1(req, res) {
     }
     console.log("Expression :", util.inspect(expression, { depth: null, maxArrayLength: null }));
 
+    const dbRef = ref(database);
+
     res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
     res.setHeader("Transfer-Encoding", "chunked");
     res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -303,8 +101,40 @@ export default async function queryFetch_V1(req, res) {
       res.flushHeaders();
     }
 
-    const patientData = await getData(expression, res);
-    console.log("Patient Data Keys:", Object.keys(patientData));
+    // get all required nodes from expression
+    const requiredNodes = Array.from(
+      new Set(
+        expression
+          .filter((item) => item.type === "selector" && item.value && item.value.selectedOption4)
+          .flatMap((item) => (Array.isArray(item.value.selectedOption4) ? item.value.selectedOption4 : [item.value.selectedOption4]))
+          .filter(Boolean),
+      ),
+    );
+
+    // Ensure Form_1 is included if general Date or Coverage Status is used
+    if (expression.some((item) => item.type === "selector" && (item.value?.selectedOption4 === "general" || item.value?.selectedOption2 === "Coverage Status")) && !requiredNodes.includes("Form_1")) {
+      requiredNodes.push("Form_1");
+    }
+    // Ensure profile_history1 is included if patients1 is required
+    if (requiredNodes.includes("patients1") && !requiredNodes.includes("profile_history1")) {
+      requiredNodes.push("profile_history1");
+    }
+    console.log("Required Nodes:", requiredNodes);
+    const snapshots = {};
+
+    // Fetch all required nodes in parallel
+    await mapWithConcurrency(requiredNodes, ROOT_NODE_FETCH_CONCURRENCY, async (node) => {
+      snapshots[node] = await get(child(dbRef, `${node}/`));
+      await writeStreamMessage(res, { fetching: node });
+    });
+
+    const patientData = {};
+    for (const key in snapshots) {
+      if (snapshots[key].exists()) {
+        patientData[key] = snapshots[key].val();
+      }
+    }
+
     // If the query is structured as top-level parenthesis groups joined by AND,
     // evaluate each group independently and intersect results.
     // This prevents Phase-1/Phase-2 data from being combined before evaluation.
@@ -724,7 +554,6 @@ async function validateData(data, expression, query, res, options = {}) {
   const uuidBatches = chunkArray(allUUIDEntries, BATCH_SIZE);
   let processedCount = 0;
   let lastProgressSent = 0;
-  let matchedCount = 0;
 
   const matchedUUIDs = [];
   const streamedRows = [];
@@ -829,7 +658,6 @@ async function validateData(data, expression, query, res, options = {}) {
             let maxPhase1Timestamp = null;
             let maxPhase2Timestamp = null;
             let maxPhase3Timestamp = null;
-
             Object.keys(profileCData).forEach((timestamp) => {
               if (Number(timestamp) <= p2StartTime) {
                 if (!maxPhase1Timestamp || Number(timestamp) > Number(maxPhase1Timestamp)) {
@@ -1542,17 +1370,11 @@ async function validateData(data, expression, query, res, options = {}) {
     });
 
     for (const matchedRow of batchMatches) {
-      processedCount++;
-
       if (!matchedRow) {
-        if (processedCount - lastProgressSent >= PROGRESS_UPDATE_EVERY) {
-          await writeStreamMessage(res, { processed: processedCount, ...(groupIndex ? { group: groupIndex } : {}) });
-          lastProgressSent = processedCount;
-        }
         continue;
       }
 
-      matchedCount++;
+      processedCount++;
 
       if (writeFinalData) {
         streamedRows.push(matchedRow);
@@ -1578,8 +1400,8 @@ async function validateData(data, expression, query, res, options = {}) {
     if (streamedRows.length > 0) {
       await streamResultRows(res, streamedRows);
     }
-    console.log("Matched UUIDs length: ", matchedCount);
-    return matchedCount;
+    console.log("Matched UUIDs length: ", processedCount);
+    return processedCount;
   }
 
   console.log("Matched UUIDs length: ", matchedUUIDs.length);
