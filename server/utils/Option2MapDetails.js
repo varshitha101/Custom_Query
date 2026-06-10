@@ -74,6 +74,14 @@ const form_1Node = {
   "K/C/O DM": "k_c_o:dval",
   "Cancer present": "ca_p",
   "K/C/O Cancer": "k_c_o:cval",
+  "Interested to proceed through the survey": "is",
+  Approachability: "bsf/app",
+  Acceptability: "bsf/acc",
+  Availability: "bsf/avl",
+  Affordability: "bsf/aff",
+  Appropriatness: "bsf/appr",
+  Awareness: "bsf/awr",
+  "Angst & fear": "bsf/agstnf",
 };
 const mvd = {
   "Heart Rate": "hr",

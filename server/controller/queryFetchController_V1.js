@@ -6,7 +6,7 @@ import util from "util";
 
 const p2StartTime = 1704047400;
 const p3StartTime = 1770532200;
-const ROOT_NODE_FETCH_CONCURRENCY = 2;
+const ROOT_NODE_FETCH_CONCURRENCY = 3;
 const UUID_BATCH_SIZE = 500;
 const UUID_PROCESS_CONCURRENCY = 500;
 const RESULT_STREAM_CHUNK_SIZE = 50;
@@ -122,19 +122,37 @@ export default async function queryFetch_V1(req, res) {
     console.log("Required Nodes:", requiredNodes);
     const snapshots = {};
 
+    const panchayathSelector = expression.find((item) => item.type === "selector" && item.value?.selectedOption2 === "Panchayath");
+    const panchayathList = panchayathSelector?.value?.selectedOption3 || [];
+
+    const fetchNode = [];
+    requiredNodes.forEach((node) => {
+      if (node !== "general") {
+        panchayathList.forEach((panchayath) => {
+          fetchNode.push(`${node}/${panchayath}/`);
+        });
+      }
+    });
+    console.log("Fetch Nodes:", fetchNode);
     // Fetch all required nodes in parallel
-    await mapWithConcurrency(requiredNodes, ROOT_NODE_FETCH_CONCURRENCY, async (node) => {
-      snapshots[node] = await get(child(dbRef, `${node}/`));
+    await mapWithConcurrency(fetchNode, ROOT_NODE_FETCH_CONCURRENCY, async (node) => {
+      snapshots[node] = await get(child(dbRef, `${node}`));
       await writeStreamMessage(res, { fetching: node });
     });
 
     const patientData = {};
     for (const key in snapshots) {
+      const path = key.split("/");
+      console.log("path", path);
       if (snapshots[key].exists()) {
-        patientData[key] = snapshots[key].val();
+        if (patientData[path[0]]) {
+          patientData[path[0]][path[1]] = snapshots[key].val();
+        } else {
+          patientData[path[0]] = { [path[1]]: snapshots[key].val() };
+        }
       }
     }
-
+    console.log("Patient Data:", patientData);
     // If the query is structured as top-level parenthesis groups joined by AND,
     // evaluate each group independently and intersect results.
     // This prevents Phase-1/Phase-2 data from being combined before evaluation.

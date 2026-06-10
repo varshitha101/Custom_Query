@@ -1288,6 +1288,196 @@ export default function option3Validator(field, expectedValue, dataInfo, source)
           }
         }
         return false;
+      } else if (field === "Interested to proceed through the survey") {
+        const node = form_1Node[field];
+        // console.log("node", node);
+        const isExists = data.hasOwnProperty(node);
+        if (isExists) {
+          const actualValue = data?.[node].toString().toLowerCase();
+          expectedValue = expectedValue.toString().toLowerCase() === "interested" ? "true" : "false";
+          if (actualValue === expectedValue) {
+            return true;
+          } else {
+            return false;
+          }
+        } else {
+          return expectedValue.toLocaleLowerCase() === "interested";
+        }
+        return false;
+      } else if (field === "Approachability") {
+        const mapping = {
+          "Doctor never recommended screening": "dnrs",
+          "Prefers provider-collected sample, not self-sampling": "ppsns",
+          "Providers prioritize other illnesses over screening": "ppoios",
+          "No info given about screening": "nigas",
+          "Doctor unavailable or poor counseling": "dupc",
+          "Long wait times/queues": "lwt",
+          "Distrust from past bad experiences": "dfpde",
+          "Fear of lack of confidentiality": "flc",
+          "Distrust in health system": "dhs",
+          "Faced discrimination/stigma by staff": "fds",
+          "Unclear policies/felt powerless vs staff": "upflps",
+        };
+        const [node1, node2] = form_1Node[field].split("/");
+        const actualValue = data?.[node1]?.[node2];
+        const actualValues = actualValue ? actualValue.split(",") : [];
+
+        const mappedexpectedValues = expectedValue.map((value) => mapping[value]);
+
+        if (actualValues.length > 0) {
+          if (mappedexpectedValues.some((value) => actualValues.includes(value))) {
+            return true;
+          }
+        }
+        return false;
+      } else if (field === "Acceptability") {
+        const mapping = {
+          "Shy even with female workers": "sefw",
+          "Shy undressing/talking to male staff": "sutms",
+          "Other health issues prioritized": "ohip",
+          "Only screens if symptoms appear": "osisa",
+          "Feels not at risk for cancer": "fnrfc",
+          "Believes screening is useless/unneeded": "bsu",
+          "Prefers traditional medicine": "ptm",
+          "Laziness/apathy/delaying": "lad",
+          "Needs husband's/family's permission": "nhfs",
+          "Lack of support from family/friends": "losff",
+          "No husband support during screening / recovery": "nhsds",
+          "No financial support from husband": "nfsfh",
+        };
+        const [node1, node2] = form_1Node[field].split("/");
+        const actualValue = data?.[node1]?.[node2];
+        const actualValues = actualValue ? actualValue.split(",") : [];
+
+        const mappedexpectedValues = expectedValue.map((value) => mapping[value]);
+
+        if (actualValues.length > 0) {
+          if (mappedexpectedValues.some((value) => actualValues.includes(value))) {
+            return true;
+          }
+        }
+        return false;
+      } else if (field === "Availability") {
+        const mapping = {
+          "Rural area/limited access": "rala",
+          "No clinics/mobile units nearby": "ncmun",
+          "Inconvenient clinic hours": "ich",
+          "Unclear appointment system": "uas",
+          "Long distance to clinic": "ldc",
+          "Lack of reliable transport": "lrt",
+          "No roads/transport infrastructure": "nrti",
+          "Clinic not disabled-friendly": "cndf",
+        };
+        const [node1, node2] = form_1Node[field].split("/");
+        const actualValue = data?.[node1]?.[node2];
+        const actualValues = actualValue ? actualValue.split(",") : [];
+
+        const mappedexpectedValues = expectedValue.map((value) => mapping[value]);
+
+        if (actualValues.length > 0) {
+          if (mappedexpectedValues.some((value) => actualValues.includes(value))) {
+            return true;
+          }
+        }
+        return false;
+      } else if (field === "Affordability") {
+        const mapping = {
+          "Screening not free": "snf",
+          "High out-of-pocket cost": "hopc",
+          "Cost of extra diagnostic tests": "coedt",
+          "Cost of cancer treatment": "coct",
+          "Cost of transport": "cot",
+          "No incentives for screening": "nifs",
+          "Loss of wages/work": "low",
+          "Screening takes too long (time cost)": "sttl",
+          "Childcare/family responsibilities": "cfr",
+        };
+        const [node1, node2] = form_1Node[field].split("/");
+        const actualValue = data?.[node1]?.[node2];
+        const actualValues = actualValue ? actualValue.split(",") : [];
+
+        const mappedexpectedValues = expectedValue.map((value) => mapping[value]);
+
+        if (actualValues.length > 0) {
+          if (mappedexpectedValues.some((value) => actualValues.includes(value))) {
+            return true;
+          }
+        }
+        return false;
+      } else if (field === "Appropriatness") {
+        const mapping = {
+          "Outdated/missing equipment": "ome",
+          "Dirty/unsterile facilities": "duf",
+          "Hostile/ill treatment by staff": "hitbs",
+          "Staff didn't explain results/need for test": "sder",
+          "Staff unable to assist disabled": "sutad",
+          "Shortage of manpower": "som",
+          "Shortage of screening materials": "sosm",
+          "Never received test results": "nrtr",
+          "Received test results late": "rtrl",
+          "No follow-up for abnormal results": "nffar",
+        };
+        const [node1, node2] = form_1Node[field].split("/");
+        const actualValue = data?.[node1]?.[node2];
+        const actualValues = actualValue ? actualValue.split(",") : [];
+
+        const mappedexpectedValues = expectedValue.map((value) => mapping[value]);
+
+        if (actualValues.length > 0) {
+          if (mappedexpectedValues.some((value) => actualValues.includes(value))) {
+            return true;
+          }
+        }
+        return false;
+      } else if (field === "Awareness") {
+        const mapping = {
+          "Unaware of the disease/screening": "uotds",
+          "Unaware of risk factors/causes": "uorf",
+          "Unaware of screening frequency/urgency": "uosf",
+          "Unaware of how to access screening": "uohtas",
+          "Unaware of where to screen/if free": "uowts",
+          "Misconceptions about disease/screening": "mads",
+          "Stopped by superstitions/religious beliefs": "sbsrb",
+        };
+        const [node1, node2] = form_1Node[field].split("/");
+        const actualValue = data?.[node1]?.[node2];
+        const actualValues = actualValue ? actualValue.split(",") : [];
+
+        const mappedexpectedValues = expectedValue.map((value) => mapping[value]);
+
+        if (actualValues.length > 0) {
+          if (mappedexpectedValues.some((value) => actualValues.includes(value))) {
+            return true;
+          }
+        }
+        return false;
+      } else if (field === "Angst & fear") {
+        const mapping = {
+          "Fear of pain": "fop",
+          "Fear of cancer diagnosis": "focd",
+          "Fear of stigma/shame/blame": "foss",
+          "Fear of disability/death": "fod",
+          "Fear of hospital infections": "fhi",
+          "Fear of vaccination/procedures": "fov",
+          "Fear speculum causes infertility": "fsci",
+          "Fear of catching cancer during screening": "foccds",
+          "Fear of discovering disease from husband": "foddfh",
+          "Fear of HIV/other diagnoses": "foh",
+          "Fear of spouse violence/straying": "fosv",
+          "Fear of surgery/loss of femininity/hospitals": "fos",
+        };
+        const [node1, node2] = form_1Node[field].split("/");
+        const actualValue = data?.[node1]?.[node2];
+        const actualValues = actualValue ? actualValue.split(",") : [];
+
+        const mappedexpectedValues = expectedValue.map((value) => mapping[value]);
+
+        if (actualValues.length > 0) {
+          if (mappedexpectedValues.some((value) => actualValues.includes(value))) {
+            return true;
+          }
+        }
+        return false;
       }
     } else if (source === "manual_vital_data") {
       if (field === "Heart Rate") {

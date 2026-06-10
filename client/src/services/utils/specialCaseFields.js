@@ -26,6 +26,13 @@ export const multiSelectFields = [
   "Reason for uptake  Starting the habit",
   "what among the following were the barriers to quit?",
   "Panchayath",
+  "Approachability",
+  "Acceptability",
+  "Availability",
+  "Affordability",
+  "Appropriatness",
+  "Awareness",
+  "Angst & fear",
 ];
 export const rangeSelectFields = ["Age", "Height (in cms)", "Weight (in kgs)", "Age of menarche", "Age at hysterectomy", "Age at menopause", "Gravida", "Age at first child", "Heart Rate", "SPO2"];
 export const rangeSelectPlusEnterFields = [

@@ -1209,6 +1209,147 @@ export default async function handleQueryFetch(expression, expressionString, set
                     return count;
                   }
 
+                  function mappingIs(data) {
+                    if (!Object.hasOwn(data, "is")) {
+                      return "Interested";
+                    }
+
+                    if (data.is === "false" || data.is === false) {
+                      return "Not Interested";
+                    }
+
+                    if (data.is === "true" || data.is === true) {
+                      return "Interested";
+                    }
+
+                    return "";
+                  }
+
+                  function mapping_app(data) {
+                    if (!data || typeof data !== "string") return "";
+                    const mapping = {
+                      dnrs: "Doctor never recommended screening",
+                      ppsns: "Prefers provider-collected sample, not self-sampling",
+                      ppoios: "Providers prioritize other illnesses over screening",
+                      nigas: "No info given about screening",
+                      dupc: "Doctor unavailable or poor counseling",
+                      lwt: "Long wait times/queues",
+                      dfpde: "Distrust from past bad experiences",
+                      flc: "Fear of lack of confidentiality",
+                      dhs: "Distrust in health system",
+                      fds: "Faced discrimination/stigma by staff",
+                      upflps: "Unclear policies/felt powerless vs staff",
+                    };
+                    const splitData = data.split(",").map((s) => s.trim());
+                    return splitData.length > 0 ? splitData.map((item) => mapping[item] || item).join("; ") : "";
+                  }
+
+                  function mapping_acc(data) {
+                    if (!data || typeof data !== "string") return "";
+                    const mapping = {
+                      sefw: "Shy even with female workers",
+                      sutms: "Shy undressing/talking to male staff",
+                      ohip: "Other health issues prioritized",
+                      osisa: "Only screens if symptoms appear",
+                      fnrfc: "Feels not at risk for cancer",
+                      bsu: "Believes screening is useless/unneeded",
+                      ptm: "Prefers traditional medicine",
+                      lad: "Laziness/apathy/delaying",
+                      nhfs: "Needs husband's/family's permission",
+                      losff: "Lack of support from family/friends",
+                      nhsds: "No husband support during screening / recovery",
+                      nfsfh: "No financial support from husband",
+                    };
+                    const splitData = data.split(",").map((s) => s.trim());
+                    return splitData.length > 0 ? splitData.map((item) => mapping[item] || item).join("; ") : "";
+                  }
+
+                  function mapping_avl(data) {
+                    if (!data || typeof data !== "string") return "";
+                    const mapping = {
+                      rala: "Rural area/limited access",
+                      ncmun: "No clinics/mobile units nearby",
+                      ich: "Inconvenient clinic hours",
+                      uas: "Unclear appointment system",
+                      ldc: "Long distance to clinic",
+                      lrt: "Lack of reliable transport",
+                      nrti: "No roads/transport infrastructure",
+                      cndf: "Clinic not disabled-friendly",
+                    };
+                    const splitData = data.split(",").map((s) => s.trim());
+                    return splitData.length > 0 ? splitData.map((item) => mapping[item] || item).join("; ") : "";
+                  }
+
+                  function mapping_aff(data) {
+                    if (!data || typeof data !== "string") return "";
+                    const mapping = {
+                      snf: "Screening not free",
+                      hopc: "High out-of-pocket cost",
+                      coedt: "Cost of extra diagnostic tests",
+                      coct: "Cost of cancer treatment",
+                      cot: "Cost of transport",
+                      nifs: "No incentives for screening",
+                      low: "Loss of wages/work",
+                      sttl: "Screening takes too long (time cost)",
+                      cfr: "Childcare/family responsibilities",
+                    };
+                    const splitData = data.split(",").map((s) => s.trim());
+                    return splitData.length > 0 ? splitData.map((item) => mapping[item] || item).join("; ") : "";
+                  }
+
+                  function mapping_appr(data) {
+                    if (!data || typeof data !== "string") return "";
+                    const mapping = {
+                      ome: "Outdated/missing equipment",
+                      duf: "Dirty/unsterile facilities",
+                      hitbs: "Hostile/ill treatment by staff",
+                      sder: "Staff didn't explain results/need for test",
+                      sutad: "Staff unable to assist disabled",
+                      som: "Shortage of manpower",
+                      sosm: "Shortage of screening materials",
+                      nrtr: "Never received test results",
+                      rtrl: "Received test results late",
+                      nffar: "No follow-up for abnormal results",
+                    };
+                    const splitData = data.split(",").map((s) => s.trim());
+                    return splitData.length > 0 ? splitData.map((item) => mapping[item] || item).join("; ") : "";
+                  }
+
+                  function mapping_awr(data) {
+                    if (!data || typeof data !== "string") return "";
+                    const mapping = {
+                      uotds: "Unaware of the disease/screening",
+                      uorf: "Unaware of risk factors/causes",
+                      uosf: "Unaware of screening frequency/urgency",
+                      uohtas: "Unaware of how to access screening",
+                      uowts: "Unaware of where to screen/if free",
+                      mads: "Misconceptions about disease/screening",
+                      sbsrb: "Stopped by superstitions/religious beliefs",
+                    };
+                    const splitData = data.split(",").map((s) => s.trim());
+                    return splitData.length > 0 ? splitData.map((item) => mapping[item] || item).join("; ") : "";
+                  }
+
+                  function mapping_agstnf(data) {
+                    if (!data || typeof data !== "string") return "";
+                    const mapping = {
+                      fop: "Fear of pain",
+                      focd: "Fear of cancer diagnosis",
+                      foss: "Fear of stigma/shame/blame",
+                      fod: "Fear of disability/death",
+                      fhi: "Fear of hospital infections",
+                      fov: "Fear of vaccination/procedures",
+                      fsci: "Fear speculum causes infertility",
+                      foccds: "Fear of catching cancer during screening",
+                      foddfh: "Fear of discovering disease from husband",
+                      foh: "Fear of HIV/other diagnoses",
+                      fosv: "Fear of spouse violence/straying",
+                      fos: "Fear of surgery/loss of femininity/hospitals",
+                    };
+                    const splitData = data.split(",").map((s) => s.trim());
+                    return splitData.length > 0 ? splitData.map((item) => mapping[item] || item).join("; ") : "";
+                  }
+
                   return {
                     // Patients
                     Timestamp: lastKey ? new Date((Number(lastKey) + 19800) * 1000).toISOString().replace("T", " ").replace(/\..+/, "").replace(/-/g, "/") : "",
@@ -1310,7 +1451,14 @@ export default async function handleQueryFetch(expression, expressionString, set
                     "Cancer present": mapping(row.Form_1?.[lastKey]?.ca_p) || "",
                     "K/C/O Cancer": row.Form_1?.[lastKey]?.k_c_o?.cval || "",
                     "Alternate contact number": row.patients1?.alt_ctc_no || "",
-
+                    "Interested to proceed through the survey": mappingIs(row.Form_1?.[lastKey]) || "",
+                    Approachability: mapping_app(row.Form_1?.[lastKey]?.bsf?.app) || "",
+                    Acceptability: mapping_acc(row.Form_1?.[lastKey]?.bsf?.acc) || "",
+                    Availability: mapping_avl(row.Form_1?.[lastKey]?.bsf?.avl) || "",
+                    Affordability: mapping_aff(row.Form_1?.[lastKey]?.bsf?.aff) || "",
+                    Appropriatness: mapping_appr(row.Form_1?.[lastKey]?.bsf?.appr) || "",
+                    Awareness: mapping_awr(row.Form_1?.[lastKey]?.bsf?.awr) || "",
+                    "Angst & fear": mapping_agstnf(row.Form_1?.[lastKey]?.bsf?.agstnf) || "",
                     // Manual Vital Data
                     "Screening Timestamp": f3lastKey ? new Date((Number(f3lastKey) + 19800) * 1000).toISOString().replace("T", " ").replace(/\..+/, "").replace(/-/g, "/") : "",
                     "Heart Rate": row.manual_vital_data?.[mlastKey]?.hr || "",

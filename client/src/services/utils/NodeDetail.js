@@ -75,6 +75,14 @@ export const form_1Node = [
   "K/C/O DM",
   "Cancer present",
   "K/C/O Cancer",
+  "Interested to proceed through the survey",
+  "Approachability",
+  "Acceptability",
+  "Availability",
+  "Affordability",
+  "Appropriatness",
+  "Awareness",
+  "Angst & fear",
 ];
 export const mvdNode = ["Heart Rate", "SPO2", "BP/SBP", "BP/DBP", "GRBS", "Total Body Fat", "Subcutaneous Body Fat", "Visceral Body Fat", "Waist Circumference(in cm)", "Hip Circumference(in cm)"];
 export const form_3Node = [

@@ -59,6 +59,30 @@ function checkDateAndOnly(node, parentOps = []) {
 
   return { valid: true };
 }
+
+function checkPanchayathAndOnly(node, parentOps = []) {
+  if (!node) return { valid: true };
+
+  if (node.type === "selector" && node.value?.selectedOption2 === "Panchayath") {
+    if (parentOps.includes("OR")) {
+      return {
+        valid: false,
+        error: `Panchayath question Q${node.id + 1} cannot be linked with OR operator`,
+      };
+    }
+  }
+
+  if (node.type === "op") {
+    const left = checkPanchayathAndOnly(node.left, [...parentOps, node.op]);
+    if (!left.valid) return left;
+
+    const right = checkPanchayathAndOnly(node.right, [...parentOps, node.op]);
+    if (!right.valid) return right;
+  }
+
+  return { valid: true };
+}
+
 /**
  *  Function to validate an expression array
  *  This function checks the structure and content of the expression array
@@ -96,6 +120,29 @@ export default function validateExpression(expression) {
   }
   if (expression[expression.length - 1].type === "choice" && operators.includes(expression[expression.length - 1].value)) {
     return { valid: false, error: "Expression cannot end with an operator" };
+  }
+
+  const hasPanchayathSelector = expression.some((item) => item.type === "selector" && item.value?.selectedOption2 === "Panchayath");
+  if (!hasPanchayathSelector) return { valid: false, error: "Expression must contain Panchayath selector" };
+  if (hasPanchayathSelector) {
+    try {
+      const tree = buildExpressionTree(expression);
+
+      const check = checkPanchayathAndOnly(tree, []);
+
+      if (!check.valid) {
+        return {
+          valid: false,
+          error: check.error,
+        };
+      }
+    } catch (e) {
+      console.log("Error building expression tree:", e);
+      return {
+        valid: false,
+        error: "Invalid expression structure",
+      };
+    }
   }
 
   const hasDateSelector = expression.some((item) => item.type === "selector" && item.value?.selectedOption2 === "Date");
