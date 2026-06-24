@@ -19,6 +19,8 @@ import RangeInputSelector from "./ui/RangeInputSelector";
 import MultiSelect from "./ui/MultiSelect";
 
 export default function OptionSelector({ id, data, onDelete, errorSelectors, selectors, setSelectors, onAdd, setExpression, isDateSelect }) {
+  const phase3CoverageStatusOptions = ["Covered in Phase 3", "Not Covered in Phase 3"];
+  const coverageStatusBlockedGroups = ["Survey", "Screening", "TCC"];
   const selector = selectors.find((s) => s.id === id);
   const [inputValue1, setInputValue1] = useState("");
   const [inputValue2, setInputValue2] = useState("");
@@ -31,7 +33,16 @@ export default function OptionSelector({ id, data, onDelete, errorSelectors, sel
   const isMandatoryPanchayathSelector = selector?.selectedOption2 === "Panchayath" && panchayathSelectorCount === 1;
   const disableDate = selectedOptions2.includes("Coverage Status");
   const disablePhase = selectedOptions2.includes("Date");
-
+  const selectedPanchayaths = Array.isArray(selector?.selectedOption3) ? selector.selectedOption3 : [];
+  const hasGlobalChintamaniPanchayath = selectors.some(
+    (currentSelector) =>
+      currentSelector?.selectedOption2 === "Panchayath" &&
+      Array.isArray(currentSelector?.selectedOption3) &&
+      currentSelector.selectedOption3.some((option) => option?.name === "Chintamani" || option?.id === "07"),
+  );
+  const hasChintamaniPanchayath = selector?.selectedOption2 === "Panchayath" && selectedPanchayaths.some((option) => option?.name === "Chintamani" || option?.id === "07");
+  const hasOtherPanchayathSelections = selector?.selectedOption2 === "Panchayath" && selectedPanchayaths.some((option) => option?.name !== "Chintamani" && option?.id !== "07");
+  const isBlockedCoverageStatusSelector = selector?.selectedOption2 === "Coverage Status" && coverageStatusBlockedGroups.includes(selector?.selectedOption1?.msg);
   const disabledOptions = [];
   if (disableDate) disabledOptions.push("Date");
   if (disablePhase) disabledOptions.push("Coverage Status");
@@ -49,6 +60,30 @@ export default function OptionSelector({ id, data, onDelete, errorSelectors, sel
       seterrorOption3(false);
     }
   }, [selector?.selectedOption1, selector?.selectedOption2, selector?.selectedOption3]);
+
+  useEffect(() => {
+    if (!hasGlobalChintamaniPanchayath || !isBlockedCoverageStatusSelector) {
+      return;
+    }
+
+    const selectedCoverageStatus = selector?.selectedOption3?.id || selector?.selectedOption3?.name || selector?.selectedOption3;
+    if (!phase3CoverageStatusOptions.includes(selectedCoverageStatus)) {
+      return;
+    }
+
+    setInputValue3("");
+    setExpression([]);
+    setSelectors((prev) =>
+      prev.map((currentSelector) =>
+        currentSelector.id === id
+          ? {
+              ...currentSelector,
+              selectedOption3: null,
+            }
+          : currentSelector,
+      ),
+    );
+  }, [hasGlobalChintamaniPanchayath, id, isBlockedCoverageStatusSelector, phase3CoverageStatusOptions, selector?.selectedOption3, setExpression, setSelectors]);
 
   // Set initial values from errorSelectors
   useEffect(() => {
@@ -327,6 +362,17 @@ export default function OptionSelector({ id, data, onDelete, errorSelectors, sel
           options={getSelectedOption3()}
           error={errorOption3}
           maxSelections={selector?.selectedOption2 === "Panchayath" ? 5 : undefined}
+          getOptionDisabled={(option) => {
+            if (hasChintamaniPanchayath) {
+              return !selectedPanchayaths.some((selectedOption) => selectedOption?.id === option?.id);
+            }
+
+            if (hasOtherPanchayathSelections) {
+              return option?.name === "Chintamani" || option?.id === "07";
+            }
+
+            return false;
+          }}
           disabled={!selector?.selectedOption2}
         />
       ) : getSelectedOption3Length() === 0 ? (
@@ -356,6 +402,7 @@ export default function OptionSelector({ id, data, onDelete, errorSelectors, sel
           handleInputChange3={handleInputChange3}
           option={getSelectedOption3()}
           error={errorOption3}
+          getOptionDisabled={(option) => hasGlobalChintamaniPanchayath && isBlockedCoverageStatusSelector && phase3CoverageStatusOptions.includes(option?.name || option?.id)}
         />
       )}
       <IconButton sx={{ border: 1 }} variant="outlined" aria-label="delete" onClick={() => onDelete(id)} color="primary" disabled={isMandatoryPanchayathSelector}>

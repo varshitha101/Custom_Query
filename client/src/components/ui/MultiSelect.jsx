@@ -5,7 +5,7 @@ import ListItemText from "@mui/material/ListItemText";
 
 import { useCallback } from "react";
 
-export default function MultiSelect({ value, options, onChange, inputValue, onInputChange, error, helperText, maxSelections }) {
+export default function MultiSelect({ value, options, onChange, inputValue, onInputChange, error, helperText, maxSelections, getOptionDisabled }) {
   /**
    * Function to truncate a string to a maximum of 10 characters and append ellipsis if it exceeds that length.
    * This is useful for displaying long names or IDs in a compact format.
@@ -50,6 +50,10 @@ export default function MultiSelect({ value, options, onChange, inputValue, onIn
       getOptionLabel={(option) => option?.name || option?.id || ""}
       isOptionEqualToValue={(a, b) => a?.id === b?.id}
       getOptionDisabled={(option) => {
+        if (getOptionDisabled?.(option)) {
+          return true;
+        }
+
         if (!isSelectionAtLimit) {
           return false;
         }

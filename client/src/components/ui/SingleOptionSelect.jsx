@@ -1,7 +1,7 @@
 import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 
-export default function SingleOptionSelect({ value, onChange, inputValue3, handleInputChange3, option, error }) {
+export default function SingleOptionSelect({ value, onChange, inputValue3, handleInputChange3, option, error, getOptionDisabled }) {
   const style = {
     width: 360,
     height: 60,
@@ -24,6 +24,7 @@ export default function SingleOptionSelect({ value, onChange, inputValue3, handl
       options={option}
       getOptionLabel={(option) => option?.name || option?.id || ""}
       isOptionEqualToValue={(a, b) => a?.id === b?.id}
+      getOptionDisabled={getOptionDisabled}
       sx={style}
       renderInput={(params) => <TextField {...params} label="Select" error={error} helperText={error} />}
     />

@@ -167,6 +167,7 @@ export default async function handleQueryFetch(expression, expressionString, set
               const TIMESTAMP_CUTOFF_1 = 1704047400;
               const TIMESTAMP_CUTOFF_2 = 1770532200;
 
+              const TIMESTAMP_1_CUTOFF_1 = 1780295400;
               const FORM_KEYS = ["Form_1", "manual_vital_data", "Form_3", "tcc_form", "profile_history1"];
 
               function isNotEmpty(obj) {
@@ -174,38 +175,66 @@ export default async function handleQueryFetch(expression, expressionString, set
               }
 
               function splitRowByTimestamp(row) {
+                const pid = row?.patients1?.pid;
+
                 const ph1Row = { Form_1: {}, manual_vital_data: {}, Form_3: {}, tcc_form: {}, patients1: {} };
                 const ph2Row = { Form_1: {}, manual_vital_data: {}, Form_3: {}, tcc_form: {}, patients1: {} };
                 const ph3Row = { Form_1: {}, manual_vital_data: {}, Form_3: {}, tcc_form: {}, patients1: {} };
 
                 FORM_KEYS.forEach((formKey) => {
                   if (row[formKey]) {
-                    if (formKey === "profile_history1") {
-                      // Special handling for profile_history1
-                      Object.entries(row[formKey]).forEach(([timestamp, value]) => {
-                        if (!isNotEmpty(value)) return;
-                        const ts = Number(timestamp);
-                        if (ts <= TIMESTAMP_CUTOFF_1) {
-                          // Use profile_history1 data for Phase 1
-                          ph1Row.patients1 = value;
-                        } else if (ts > TIMESTAMP_CUTOFF_1 && ts <= TIMESTAMP_CUTOFF_2) {
-                          // Use profile_history1 data for Phase 2
-                          ph2Row.patients1 = value;
-                        } else if (ts > TIMESTAMP_CUTOFF_2) {
-                          ph3Row.patients1 = value;
-                        }
-                      });
+                    if (pid.startsWith("07")) {
+                      if (formKey === "profile_history1") {
+                        // Special handling for profile_history1
+                        Object.entries(row[formKey]).forEach(([timestamp, value]) => {
+                          if (!isNotEmpty(value)) return;
+                          const ts = Number(timestamp);
+                          if (ts <= TIMESTAMP_1_CUTOFF_1) {
+                            // Use profile_history1 data for Phase 1
+                            ph1Row.patients1 = value;
+                          } else if (ts > TIMESTAMP_1_CUTOFF_1) {
+                            // Use profile_history1 data for Phase 2
+                            ph2Row.patients1 = value;
+                          }
+                        });
+                      } else {
+                        Object.entries(row[formKey]).forEach(([timestamp, value]) => {
+                          const ts = Number(timestamp);
+                          if (ts <= TIMESTAMP_1_CUTOFF_1) {
+                            ph1Row[formKey][ts] = value;
+                          } else if (ts > TIMESTAMP_1_CUTOFF_1) {
+                            ph2Row[formKey][ts] = value;
+                          }
+                        });
+                      }
                     } else {
-                      Object.entries(row[formKey]).forEach(([timestamp, value]) => {
-                        const ts = Number(timestamp);
-                        if (ts <= TIMESTAMP_CUTOFF_1) {
-                          ph1Row[formKey][ts] = value;
-                        } else if (ts > TIMESTAMP_CUTOFF_1 && ts <= TIMESTAMP_CUTOFF_2) {
-                          ph2Row[formKey][ts] = value;
-                        } else if (ts > TIMESTAMP_CUTOFF_2) {
-                          ph3Row[formKey][ts] = value;
-                        }
-                      });
+                      if (formKey === "profile_history1") {
+                        // Special handling for profile_history1
+                        Object.entries(row[formKey]).forEach(([timestamp, value]) => {
+                          if (!isNotEmpty(value)) return;
+                          const ts = Number(timestamp);
+                          if (ts <= TIMESTAMP_CUTOFF_1) {
+                            // Use profile_history1 data for Phase 1
+                            ph1Row.patients1 = value;
+                          } else if (ts > TIMESTAMP_CUTOFF_1 && ts <= TIMESTAMP_CUTOFF_2) {
+                            // Use profile_history1 data for Phase 2
+                            ph2Row.patients1 = value;
+                          } else if (ts > TIMESTAMP_CUTOFF_2) {
+                            ph3Row.patients1 = value;
+                          }
+                        });
+                      } else {
+                        Object.entries(row[formKey]).forEach(([timestamp, value]) => {
+                          const ts = Number(timestamp);
+                          if (ts <= TIMESTAMP_CUTOFF_1) {
+                            ph1Row[formKey][ts] = value;
+                          } else if (ts > TIMESTAMP_CUTOFF_1 && ts <= TIMESTAMP_CUTOFF_2) {
+                            ph2Row[formKey][ts] = value;
+                          } else if (ts > TIMESTAMP_CUTOFF_2) {
+                            ph3Row[formKey][ts] = value;
+                          }
+                        });
+                      }
                     }
                   }
                 });
@@ -228,7 +257,7 @@ export default async function handleQueryFetch(expression, expressionString, set
                 if (isNotEmpty(ph2Row.Form_1) || isNotEmpty(ph2Row.manual_vital_data) || isNotEmpty(ph2Row.Form_3) || isNotEmpty(ph2Row.tcc_form)) {
                   result.push(ph2Row);
                 }
-                if (isNotEmpty(ph3Row.Form_1) || isNotEmpty(ph3Row.manual_vital_data) || isNotEmpty(ph3Row.Form_3) || isNotEmpty(ph3Row.tcc_form)) {
+                if (!pid.startsWith("07") && (isNotEmpty(ph3Row.Form_1) || isNotEmpty(ph3Row.manual_vital_data) || isNotEmpty(ph3Row.Form_3) || isNotEmpty(ph3Row.tcc_form))) {
                   result.push(ph3Row);
                 }
                 return result;
@@ -1358,8 +1387,16 @@ export default async function handleQueryFetch(expression, expressionString, set
                     Panchayath: row.patients1?.pcht_n || "",
                     "Individual Unique ID ": row.patients1?.pid || "",
                     Name: row.patients1?.name || "",
-                    // UUID: row.patients1?.uid || "",
+                    UUID: row.patients1?.uid || "",
                     // "Field Worker Id": row.patients1?.fw_id || "",
+                    "Interested to proceed through the survey": mappingIs(row.Form_1?.[lastKey]) || "",
+                    Approachability: mapping_app(row.Form_1?.[lastKey]?.bsf?.app) || "",
+                    Acceptability: mapping_acc(row.Form_1?.[lastKey]?.bsf?.acc) || "",
+                    Availability: mapping_avl(row.Form_1?.[lastKey]?.bsf?.avl) || "",
+                    Affordability: mapping_aff(row.Form_1?.[lastKey]?.bsf?.aff) || "",
+                    Appropriatness: mapping_appr(row.Form_1?.[lastKey]?.bsf?.appr) || "",
+                    Awareness: mapping_awr(row.Form_1?.[lastKey]?.bsf?.awr) || "",
+                    "Angst & fear": mapping_agstnf(row.Form_1?.[lastKey]?.bsf?.agstnf) || "",
                     "ID Proof Type": mapping(row.patients1?.idprftype) || "",
                     "ID Proof Number": row.patients1?.idprfno || "",
                     "Number of family members": row.patients1?.no_fm || "",
@@ -1451,14 +1488,6 @@ export default async function handleQueryFetch(expression, expressionString, set
                     "Cancer present": mapping(row.Form_1?.[lastKey]?.ca_p) || "",
                     "K/C/O Cancer": row.Form_1?.[lastKey]?.k_c_o?.cval || "",
                     "Alternate contact number": row.patients1?.alt_ctc_no || "",
-                    "Interested to proceed through the survey": mappingIs(row.Form_1?.[lastKey]) || "",
-                    Approachability: mapping_app(row.Form_1?.[lastKey]?.bsf?.app) || "",
-                    Acceptability: mapping_acc(row.Form_1?.[lastKey]?.bsf?.acc) || "",
-                    Availability: mapping_avl(row.Form_1?.[lastKey]?.bsf?.avl) || "",
-                    Affordability: mapping_aff(row.Form_1?.[lastKey]?.bsf?.aff) || "",
-                    Appropriatness: mapping_appr(row.Form_1?.[lastKey]?.bsf?.appr) || "",
-                    Awareness: mapping_awr(row.Form_1?.[lastKey]?.bsf?.awr) || "",
-                    "Angst & fear": mapping_agstnf(row.Form_1?.[lastKey]?.bsf?.agstnf) || "",
                     // Manual Vital Data
                     "Screening Timestamp": f3lastKey ? new Date((Number(f3lastKey) + 19800) * 1000).toISOString().replace("T", " ").replace(/\..+/, "").replace(/-/g, "/") : "",
                     "Heart Rate": row.manual_vital_data?.[mlastKey]?.hr || "",

@@ -632,7 +632,7 @@ export default function Home() {
           right: "10px",
           color: "gray",
         }}>
-        Version 0.15.9
+        Version 0.15.10
       </Typography>
     </Box>
   );
