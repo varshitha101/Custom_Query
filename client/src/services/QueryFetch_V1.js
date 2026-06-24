@@ -176,6 +176,7 @@ export default async function handleQueryFetch(expression, expressionString, set
 
               function splitRowByTimestamp(row) {
                 const pid = row?.patients1?.pid;
+                const isChintamaniPid = pid && typeof pid === "string" && pid.startsWith("07");
 
                 const ph1Row = { Form_1: {}, manual_vital_data: {}, Form_3: {}, tcc_form: {}, patients1: {} };
                 const ph2Row = { Form_1: {}, manual_vital_data: {}, Form_3: {}, tcc_form: {}, patients1: {} };
@@ -183,7 +184,7 @@ export default async function handleQueryFetch(expression, expressionString, set
 
                 FORM_KEYS.forEach((formKey) => {
                   if (row[formKey]) {
-                    if (pid.startsWith("07")) {
+                    if (isChintamaniPid) {
                       if (formKey === "profile_history1") {
                         // Special handling for profile_history1
                         Object.entries(row[formKey]).forEach(([timestamp, value]) => {
@@ -257,7 +258,7 @@ export default async function handleQueryFetch(expression, expressionString, set
                 if (isNotEmpty(ph2Row.Form_1) || isNotEmpty(ph2Row.manual_vital_data) || isNotEmpty(ph2Row.Form_3) || isNotEmpty(ph2Row.tcc_form)) {
                   result.push(ph2Row);
                 }
-                if (!pid.startsWith("07") && (isNotEmpty(ph3Row.Form_1) || isNotEmpty(ph3Row.manual_vital_data) || isNotEmpty(ph3Row.Form_3) || isNotEmpty(ph3Row.tcc_form))) {
+                if (!isChintamaniPid && (isNotEmpty(ph3Row.Form_1) || isNotEmpty(ph3Row.manual_vital_data) || isNotEmpty(ph3Row.Form_3) || isNotEmpty(ph3Row.tcc_form))) {
                   result.push(ph3Row);
                 }
                 return result;

@@ -127,7 +127,7 @@ export default async function queryFetch_V1(req, res) {
     const panchayathList = panchayathSelector?.value?.selectedOption3 || [];
 
     // check if list has 07 if yes then no other list should be there throw error
-    const hasChintamani = panchayathList.some((panchayath) => panchayath?.id === "07");
+    const hasChintamani = panchayathList.some((panchayath) => panchayath === "07");
     if (hasChintamani && panchayathList.length > 1) {
       throw new QueryFetchError("If Chintamani is selected, no other Panchayath should be selected.", 400);
     }
@@ -459,7 +459,7 @@ async function validateData(data, expression, query, res, options = {}) {
 
   const panchayathSelector = expression.find((item) => item.type === "selector" && item.value?.selectedOption2 === "Panchayath");
   const panchayathList = panchayathSelector?.value?.selectedOption3 || [];
-  const hasChintamani = panchayathList.some((panchayath) => panchayath?.id === "07");
+  const hasChintamani = panchayathList.some((panchayath) => panchayath === "07");
 
   expression.forEach((item) => {
     if (item.type === "selector") {
@@ -496,10 +496,6 @@ async function validateData(data, expression, query, res, options = {}) {
             isPhase2 = true;
           } else if (option3 === "Not Covered in Phase 2") {
             isPhase1 = true;
-          } else if (option3 === "Covered in Phase 3") {
-            throw new QueryFetchError("Covered in Phase 3 is not allowed for Chintamani", 400);
-          } else if (option3 === "Not Covered in Phase 3") {
-            throw new QueryFetchError("Not Covered in Phase 3 is not allowed for Chintamani", 400);
           }
         }
       } else {
@@ -654,7 +650,8 @@ async function validateData(data, expression, query, res, options = {}) {
   }
 
   const uuidBatches = chunkArray(allUUIDEntries, BATCH_SIZE);
-  let processedCount = 0;
+  let processedUuidCount = 0;
+  let matchedCount = 0;
   let lastProgressSent = 0;
 
   const matchedUUIDs = [];
@@ -1079,37 +1076,21 @@ async function validateData(data, expression, query, res, options = {}) {
                 const nodeData = snapshot.val();
                 if (node !== "patients1") {
                   const { maxPhase1, maxPhase2, maxPhase3, maxPhaseAll } = getMaxPhaseTimestamps(panchayathId, villageId, uuid, nodeData);
+                  infoObject[node] = {};
                   if (isDatePresent) {
                     if (isPhase1 && maxPhase1) {
-                      infoObject[node] = {
-                        [maxPhase1]: nodeData[maxPhase1],
-                      };
-                    } else {
-                      infoObject[node] = {};
+                      infoObject[node][maxPhase1] = nodeData[maxPhase1];
                     }
                     if (isPhase2 && maxPhase2) {
-                      infoObject[node] = {
-                        [maxPhase2]: nodeData[maxPhase2],
-                      };
-                    } else {
-                      infoObject[node] = {};
+                      infoObject[node][maxPhase2] = nodeData[maxPhase2];
                     }
                     if (isPhase3 && maxPhase3) {
-                      infoObject[node] = {
-                        [maxPhase3]: nodeData[maxPhase3],
-                      };
-                    } else {
-                      infoObject[node] = {};
+                      infoObject[node][maxPhase3] = nodeData[maxPhase3];
                     }
                     if (isBetween && maxPhaseAll) {
-                      infoObject[node] = {
-                        [maxPhaseAll]: nodeData[maxPhaseAll],
-                      };
-                    } else {
-                      infoObject[node] = {};
+                      infoObject[node][maxPhaseAll] = nodeData[maxPhaseAll];
                     }
                   } else {
-                    infoObject[node] = {};
                     if (maxPhase1 !== null) {
                       infoObject[node][maxPhase1] = nodeData[maxPhase1];
                     }
@@ -1155,11 +1136,17 @@ async function validateData(data, expression, query, res, options = {}) {
     });
 
     for (const matchedRow of batchMatches) {
+      processedUuidCount++;
+
       if (!matchedRow) {
+        if (processedUuidCount - lastProgressSent >= PROGRESS_UPDATE_EVERY) {
+          await writeStreamMessage(res, { processed: processedUuidCount, ...(groupIndex ? { group: groupIndex } : {}) });
+          lastProgressSent = processedUuidCount;
+        }
         continue;
       }
 
-      processedCount++;
+      matchedCount++;
 
       if (writeFinalData) {
         streamedRows.push(matchedRow);
@@ -1170,23 +1157,23 @@ async function validateData(data, expression, query, res, options = {}) {
         matchedUUIDs.push(matchedRow);
       }
 
-      if (processedCount - lastProgressSent >= PROGRESS_UPDATE_EVERY) {
-        await writeStreamMessage(res, { processed: processedCount, ...(groupIndex ? { group: groupIndex } : {}) });
-        lastProgressSent = processedCount;
+      if (processedUuidCount - lastProgressSent >= PROGRESS_UPDATE_EVERY) {
+        await writeStreamMessage(res, { processed: processedUuidCount, ...(groupIndex ? { group: groupIndex } : {}) });
+        lastProgressSent = processedUuidCount;
       }
     }
   }
 
-  if (processedCount !== lastProgressSent) {
-    await writeStreamMessage(res, { processed: processedCount, ...(groupIndex ? { group: groupIndex } : {}) });
+  if (processedUuidCount !== lastProgressSent) {
+    await writeStreamMessage(res, { processed: processedUuidCount, ...(groupIndex ? { group: groupIndex } : {}) });
   }
 
   if (writeFinalData) {
     if (streamedRows.length > 0) {
       await streamResultRows(res, streamedRows);
     }
-    console.log("Matched UUIDs length: ", processedCount);
-    return processedCount;
+    console.log("Matched UUIDs length: ", matchedCount);
+    return matchedCount;
   }
 
   console.log("Matched UUIDs length: ", matchedUUIDs.length);
