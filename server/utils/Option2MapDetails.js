@@ -82,6 +82,14 @@ const form_1Node = {
   Appropriatness: "bsf/appr",
   Awareness: "bsf/awr",
   "Angst & fear": "bsf/agstnf",
+  "Interested to proceed through the Screening": "isrc",
+  "Approachability ": "bscrf/appscr",
+  "Acceptability ": "bscrf/accscr",
+  "Availability ": "bscrf/avlscr",
+  "Affordability ": "bscrf/affscr",
+  "Appropriatness ": "bscrf/apprscr",
+  "Awareness ": "bscrf/awrscr",
+  "Angst & fear ": "bscrf/agstnfscr",
 };
 const mvd = {
   "Heart Rate": "hr",

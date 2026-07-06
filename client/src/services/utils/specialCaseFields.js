@@ -33,6 +33,13 @@ export const multiSelectFields = [
   "Appropriatness",
   "Awareness",
   "Angst & fear",
+  "Approachability ",
+  "Acceptability ",
+  "Availability ",
+  "Affordability ",
+  "Appropriatness ",
+  "Awareness ",
+  "Angst & fear ",
 ];
 export const rangeSelectFields = ["Age", "Height (in cms)", "Weight (in kgs)", "Age of menarche", "Age at hysterectomy", "Age at menopause", "Gravida", "Age at first child", "Heart Rate", "SPO2"];
 export const rangeSelectPlusEnterFields = [

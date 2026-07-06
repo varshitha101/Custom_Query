@@ -83,6 +83,14 @@ export const form_1Node = [
   "Appropriatness",
   "Awareness",
   "Angst & fear",
+  "Interested to proceed through the Screening",
+  "Approachability ",
+  "Acceptability ",
+  "Availability ",
+  "Affordability ",
+  "Appropriatness ",
+  "Awareness ",
+  "Angst & fear ",
 ];
 export const mvdNode = ["Heart Rate", "SPO2", "BP/SBP", "BP/DBP", "GRBS", "Total Body Fat", "Subcutaneous Body Fat", "Visceral Body Fat", "Waist Circumference(in cm)", "Hip Circumference(in cm)"];
 export const form_3Node = [

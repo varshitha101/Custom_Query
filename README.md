@@ -131,3 +131,10 @@ OR
 
 - **Version 0.15.9**:
   - Added Additional Question to Form_1
+
+- **Version 0.15.10**:
+  - For the Chintamani panchayat, Phase 2 starts on 1-06-2026. Any patient data after this date is Phase 2; data before this date is Phase 1.
+  - If Chintamani Panchayat is selected, no other panchayat can be selected. Likewise, if any other panchayat is selected, Chintamani Panchayat cannot be selected. This restriction has been implemented to avoid mismatches in the General, Date. For example, a date falling within the year 2025 is considered Phase 1 for Chintamani Panchayat, whereas the same date is considered Phase 2 for all other panchayats.
+
+- **Version 0.15.11**:
+  - Added Barrier to Screening form question

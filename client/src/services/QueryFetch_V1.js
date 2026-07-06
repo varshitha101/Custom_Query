@@ -1254,6 +1254,21 @@ export default async function handleQueryFetch(expression, expressionString, set
 
                     return "";
                   }
+                  function mappingisrc(data) {
+                    if (!Object.hasOwn(data, "isrc")) {
+                      return "Interested";
+                    }
+
+                    if (data.isrc === "false" || data.isrc === false) {
+                      return "Not Interested";
+                    }
+
+                    if (data.isrc === "true" || data.isrc === true) {
+                      return "Interested";
+                    }
+
+                    return "";
+                  }
 
                   function mapping_app(data) {
                     if (!data || typeof data !== "string") return "";
@@ -1489,6 +1504,14 @@ export default async function handleQueryFetch(expression, expressionString, set
                     "Cancer present": mapping(row.Form_1?.[lastKey]?.ca_p) || "",
                     "K/C/O Cancer": row.Form_1?.[lastKey]?.k_c_o?.cval || "",
                     "Alternate contact number": row.patients1?.alt_ctc_no || "",
+                    "Interested to proceed through the Screening": mappingisrc(row.Form_1?.[lastKey]) || "",
+                    "Approachability ": mapping_app(row.Form_1?.[lastKey]?.bscrf?.appscr) || "",
+                    "Acceptability ": mapping_acc(row.Form_1?.[lastKey]?.bscrf?.accscr) || "",
+                    "Availability ": mapping_avl(row.Form_1?.[lastKey]?.bscrf?.avlscr) || "",
+                    "Affordability ": mapping_aff(row.Form_1?.[lastKey]?.bscrf?.affscr) || "",
+                    "Appropriatness ": mapping_appr(row.Form_1?.[lastKey]?.bscrf?.apprscr) || "",
+                    "Awareness ": mapping_awr(row.Form_1?.[lastKey]?.bscrf?.awrscr) || "",
+                    "Angst & fear ": mapping_agstnf(row.Form_1?.[lastKey]?.bscrf?.agstnfscr) || "",
                     // Manual Vital Data
                     "Screening Timestamp": f3lastKey ? new Date((Number(f3lastKey) + 19800) * 1000).toISOString().replace("T", " ").replace(/\..+/, "").replace(/-/g, "/") : "",
                     "Heart Rate": row.manual_vital_data?.[mlastKey]?.hr || "",
