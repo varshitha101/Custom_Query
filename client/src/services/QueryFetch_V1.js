@@ -1403,7 +1403,7 @@ export default async function handleQueryFetch(expression, expressionString, set
                     Panchayath: row.patients1?.pcht_n || "",
                     "Individual Unique ID ": row.patients1?.pid || "",
                     Name: row.patients1?.name || "",
-                    UUID: row.patients1?.uid || "",
+                    // UUID: row.patients1?.uid || "",
                     // "Field Worker Id": row.patients1?.fw_id || "",
                     "Interested to proceed through the survey": mappingIs(row.Form_1?.[lastKey]) || "",
                     Approachability: mapping_app(row.Form_1?.[lastKey]?.bsf?.app) || "",
@@ -1621,8 +1621,7 @@ export default async function handleQueryFetch(expression, expressionString, set
                       mapping(row.tcc_form?.[tcclastKey]?.db) || "",
                     "Fagerstorm Test for Nicotine Dependence - Which cigarette would you hate most to give up?": mapping(row.tcc_form?.[tcclastKey]?.dc) || "",
                     "Fagerstorm Test for Nicotine Dependence - How many cigarettes per day do you smoke?": mapping(row.tcc_form?.[tcclastKey]?.dd) || "",
-                    "Fagerstorm Test for Nicotine Dependence - Do you smoke more frequently during the first hours of waking than during the rest of the day?":
-                      mapping(row.tcc_form?.[tcclastKey]?.de) || "",
+                    "Fagerstorm Test for Nicotine Dependence - Do you smoke more frequently during the first hours of waking than during the rest of the day?": mapping(row.tcc_form?.[tcclastKey]?.de) || "",
                     "Fagerstorm Test for Nicotine Dependence - Do you smoke even if you are sick in bed?": mapping(row.tcc_form?.[tcclastKey]?.df) || "",
                     "Modified Fagerstorm Test - How soon after you wake up do you place your first dip?": mapping(row.tcc_form?.[tcclastKey]?.fa) || "",
                     "Modified Fagerstorm Test - How often do you intentionally swallow its juice?": Mapping2(row.tcc_form?.[tcclastKey]?.fb) || "",

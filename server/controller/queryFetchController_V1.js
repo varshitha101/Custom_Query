@@ -84,6 +84,12 @@ export default async function queryFetch_V1(req, res) {
   const reqStartTime = Date.now();
   try {
     const { expression, expressionString } = req.body;
+    if (!Array.isArray(expression) || expression.length === 0) {
+      throw new QueryFetchError("Expression must be a non-empty array.", 400);
+    }
+    if (typeof expressionString !== "string" || expressionString.trim().length === 0) {
+      throw new QueryFetchError("Expression string must be a non-empty string.", 400);
+    }
     console.log("Expression String:", expressionString);
     if (typeof expressionString === "string" && /[\r\n]/.test(expressionString)) {
       console.log("[QueryFetch_V1] Query string contains line break(s). This can break parsing/eval.");
@@ -762,6 +768,7 @@ async function validateData(data, expression, query, res, options = {}) {
                 form1Data[maxPhase3] = form1CData[maxPhase3];
                 Form1_ph3MaxTimestamp = maxPhase3;
               } else if (isBetween && maxPhaseAll) {
+                form1Data[maxPhaseAll] = form1CData[maxPhaseAll];
                 Form1_maxTimestamp = maxPhaseAll;
               }
             } else if (isPhaseDatePresent) {
@@ -968,14 +975,7 @@ async function validateData(data, expression, query, res, options = {}) {
           } else if (selectedOption4 === "general" && selectedOption2 === "Date" && isDatePresent && isPhase3 && Form1_ph3MaxTimestamp) {
             // set true if date is present and in phase 3
             conditionMap[label] = true;
-          } else if (
-            selectedOption4 === "general" &&
-            selectedOption2 === "Date" &&
-            isDatePresent &&
-            isBetween &&
-            form1Timesatamp.length &&
-            form1Timesatamp.some((t) => Number.isFinite(Number(t)) && Number(t) >= startData && Number(t) <= lastDate)
-          ) {
+          } else if (selectedOption4 === "general" && selectedOption2 === "Date" && isDatePresent && isBetween && form1Timesatamp.length && form1Timesatamp.some((t) => Number.isFinite(Number(t)) && Number(t) >= startData && Number(t) <= lastDate)) {
             // set true if date is present and in between phases
             conditionMap[label] = true;
           } else if (selectedOption2 === "Coverage Status" && Array.isArray(selectedOption4) && selectedOption4.includes("patients1") && selectedOption4.includes("Form_1")) {

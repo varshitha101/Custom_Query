@@ -138,3 +138,6 @@ OR
 
 - **Version 0.15.11**:
   - Added Barrier to Screening form question
+
+- **Version 0.15.12**:
+  - Added 10 new Villages to Chintamani panchayat.
