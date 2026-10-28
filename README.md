@@ -120,7 +120,7 @@ OR
   - Added Phase 3 logic in backend.
 
 - **Version 0.15.5**:
-  - Removed the profile_history1 node from being prioritized during querying and replaced it with patients1 instead of profile_history1.
+  - Removed the profile_history1 node from being prioritized during querying and replaced it with patients1 instead of profile_history1.  
   - Changed the date range logic to check whether Form_1 has a timestamp within the given date range. If yes, the latest data from all timestamps will be sent.
 
 - **Version 0.15.7**:

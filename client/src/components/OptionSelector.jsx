@@ -35,10 +35,7 @@ export default function OptionSelector({ id, data, onDelete, errorSelectors, sel
   const disablePhase = selectedOptions2.includes("Date");
   const selectedPanchayaths = Array.isArray(selector?.selectedOption3) ? selector.selectedOption3 : [];
   const hasGlobalChintamaniPanchayath = selectors.some(
-    (currentSelector) =>
-      currentSelector?.selectedOption2 === "Panchayath" &&
-      Array.isArray(currentSelector?.selectedOption3) &&
-      currentSelector.selectedOption3.some((option) => option?.name === "Chintamani" || option?.id === "07"),
+    (currentSelector) => currentSelector?.selectedOption2 === "Panchayath" && Array.isArray(currentSelector?.selectedOption3) && currentSelector.selectedOption3.some((option) => option?.name === "Chintamani" || option?.id === "07"),
   );
   const hasChintamaniPanchayath = selector?.selectedOption2 === "Panchayath" && selectedPanchayaths.some((option) => option?.name === "Chintamani" || option?.id === "07");
   const hasOtherPanchayathSelections = selector?.selectedOption2 === "Panchayath" && selectedPanchayaths.some((option) => option?.name !== "Chintamani" && option?.id !== "07");
@@ -312,7 +309,8 @@ export default function OptionSelector({ id, data, onDelete, errorSelectors, sel
         gap: 1,
         flexWrap: "wrap",
         m: 0,
-      }}>
+      }}
+    >
       <OptionSelectorHeader id={id} />
       <SelectorOption1 value={selector?.selectedOption1} onChange={handleSelectedOption1Change} inputValue={inputValue1} onInputChange={handleInputChange1} options={data} error={errorOption1} />
       <SelectorOption2

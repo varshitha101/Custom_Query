@@ -1403,7 +1403,7 @@ export default async function handleQueryFetch(expression, expressionString, set
                     Panchayath: row.patients1?.pcht_n || "",
                     "Individual Unique ID ": row.patients1?.pid || "",
                     Name: row.patients1?.name || "",
-                    // UUID: row.patients1?.uid || "",
+                    UUID: row.patients1?.uid || "",
                     // "Field Worker Id": row.patients1?.fw_id || "",
                     "Interested to proceed through the survey": mappingIs(row.Form_1?.[lastKey]) || "",
                     Approachability: mapping_app(row.Form_1?.[lastKey]?.bsf?.app) || "",

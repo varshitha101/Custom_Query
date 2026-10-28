@@ -504,7 +504,8 @@ export default function Home() {
         height: "100%",
         width: "100%",
         position: "absolute",
-      }}>
+      }}
+    >
       <Card sx={{ boxShadow: 3, width: "80%" }}>
         <Box
           sx={{
@@ -513,7 +514,8 @@ export default function Home() {
             justifyContent: "space-between",
             flexDirection: { xs: "column", sm: "row" },
             p: 2,
-          }}>
+          }}
+        >
           <img src={logo} alt="logo2" style={{ width: "40%", maxWidth: "100px", height: "10%" }} />
           <LogoutIcon
             sx={{
@@ -532,7 +534,8 @@ export default function Home() {
         <Box
           sx={{
             paddingX: 2,
-          }}>
+          }}
+        >
           <Box
             sx={{
               overflowY: "auto",
@@ -540,7 +543,8 @@ export default function Home() {
               borderColor: "#868686",
               borderRadius: "10px",
               height: "50vh",
-            }}>
+            }}
+          >
             <TransitionGroup>
               {selectors.map((selector) => (
                 <Fade key={selector.id} timeout={1000}>
@@ -570,7 +574,8 @@ export default function Home() {
               borderColor: "#868686",
               borderRadius: "10px",
               alignItems: "center",
-            }}>
+            }}
+          >
             <Box>
               <DndContext onDragEnd={handleDragEnd}>
                 <Box sx={{ flexShrink: 0 }}>
@@ -583,7 +588,8 @@ export default function Home() {
                     borderRadius: "5px",
                     marginTop: 1,
                     flexGrow: 1,
-                  }}>
+                  }}
+                >
                   <Box
                     id="expression-drop-area"
                     sx={{
@@ -593,7 +599,8 @@ export default function Home() {
                       gap: 1,
                       alignItems: "center",
                       animation: isInvalidDrop ? `${shakeAnimation} 0.5s` : "none",
-                    }}>
+                    }}
+                  >
                     <DropCard expression={expression} setExpression={setExpression} />
                   </Box>
                 </Box>
@@ -631,8 +638,9 @@ export default function Home() {
           bottom: "10px",
           right: "10px",
           color: "gray",
-        }}>
-        Version 0.15.11
+        }}
+      >
+        Version 0.15.12
       </Typography>
     </Box>
   );
